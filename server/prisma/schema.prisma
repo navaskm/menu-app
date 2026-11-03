@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+enum Role {
+  OWNER
+  MANAGER
+}
+
+model Restaurant {
+  id String @id @default(cuid())
+  name String
+  restaurantCode String @unique
+  logo String?
+  tagline String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users User[]
+  categories Category[]
+  menuItems MenuItem[]
+}
+model User {
+  id String @id @default(cuid())
+  name String
+  email String
+  phone String
+  password String
+  role Role
+  isActive Boolean @default(true)
+  restaurantId String
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  sessions Session[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([restaurantId, email])
+  @@unique([restaurantId, phone])
+  @@index([restaurantId, role])
+}
+model Session {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([userId, expiresAt])
+}
+model Category {
+  id String @id @default(cuid())
+  name String
+  description String?
+  isActive Boolean @default(true)
+  restaurantId String
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItems MenuItem[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([restaurantId, name])
+  @@index([restaurantId, isActive])
+}
+model MenuItem {
+  id String @id @default(cuid())
+  name String
+  description String
+  price Decimal @db.Decimal(10, 2)
+  imageUrl String?
+  imageKey String?
+  isAvailable Boolean @default(true)
+  categoryId String
+  restaurantId String
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([restaurantId, categoryId, isAvailable])
+  @@index([restaurantId, name])
+}
+model UploadCleanup {
+  id String @id @default(cuid())
+  objectKey String
+  attempts Int @default(0)
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

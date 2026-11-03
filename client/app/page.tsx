@@ -1,0 +1,47 @@
+"use client";
+
+import { FormEvent, useMemo, useState } from "react";
+
+type MenuItem = { id: number; name: string; category: string; price: number; description: string; image: string; emoji: string; available: boolean };
+const categories = ["All", "Burgers", "Pizza", "Sandwiches", "Juices", "Shakes", "Snacks", "Desserts"];
+const menuItems: MenuItem[] = [
+  { id: 1, name: "Smoky Chicken Burger", category: "Burgers", price: 220, description: "Char-grilled chicken, smoked mayo, crisp lettuce and pickles.", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=700&q=85", emoji: "🍔", available: true },
+  { id: 2, name: "Kerala Beef Burger", category: "Burgers", price: 260, description: "Spiced beef patty, caramelised onions and house pepper sauce.", image: "https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=700&q=85", emoji: "🍔", available: true },
+  { id: 3, name: "Garden Veg Burger", category: "Burgers", price: 180, description: "Crispy vegetable patty, cheddar, tomato and fresh greens.", image: "https://images.unsplash.com/photo-1520072959219-c595dc870360?auto=format&fit=crop&w=700&q=85", emoji: "🥬", available: true },
+  { id: 4, name: "Malabar Chicken Pizza", category: "Pizza", price: 340, description: "Roasted chicken, mozzarella, herbs and a gentle chilli kick.", image: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=700&q=85", emoji: "🍕", available: true },
+  { id: 5, name: "Four Cheese Pizza", category: "Pizza", price: 390, description: "A rich blend of mozzarella, cheddar, parmesan and blue cheese.", image: "https://images.unsplash.com/photo-1579751626657-72bc17010498?auto=format&fit=crop&w=700&q=85", emoji: "🧀", available: false },
+  { id: 6, name: "Classic Club Sandwich", category: "Sandwiches", price: 240, description: "Triple-layered toast with chicken, egg, tomato and fries.", image: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=700&q=85", emoji: "🥪", available: true },
+  { id: 7, name: "Fresh Lime Soda", category: "Juices", price: 90, description: "Fresh lime, soda and a pinch of salt. Sweet or salted.", image: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&w=700&q=85", emoji: "🍋", available: true },
+  { id: 8, name: "Mango Juice", category: "Juices", price: 130, description: "Thick, chilled Alphonso mango juice with no added colour.", image: "https://images.unsplash.com/photo-1605027990121-cbae9e0642df?auto=format&fit=crop&w=700&q=85", emoji: "🥭", available: true },
+  { id: 9, name: "Chocolate Shake", category: "Shakes", price: 190, description: "Creamy Belgian chocolate shake topped with chocolate curls.", image: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=700&q=85", emoji: "🍫", available: true },
+  { id: 10, name: "Crispy Chicken Nuggets", category: "Snacks", price: 160, description: "Golden, crunchy bites served with our signature dip.", image: "https://images.unsplash.com/photo-1562967914-608f82629710?auto=format&fit=crop&w=700&q=85", emoji: "🍗", available: true },
+  { id: 11, name: "Loaded French Fries", category: "Snacks", price: 150, description: "Crispy fries, cheese sauce, spring onions and jalapeños.", image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=700&q=85", emoji: "🍟", available: true },
+  { id: 12, name: "Warm Fudge Brownie", category: "Desserts", price: 170, description: "Soft chocolate brownie served warm with vanilla ice cream.", image: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=700&q=85", emoji: "🍰", available: true },
+];
+function SearchIcon() { return <span aria-hidden="true">⌕</span>; }
+function UserIcon() { return <span aria-hidden="true">♙</span>; }
+
+export default function Home() {
+  const [query, setQuery] = useState(""); const [category, setCategory] = useState("All"); const [price, setPrice] = useState("All prices"); const [loginOpen, setLoginOpen] = useState(false); const [showAll, setShowAll] = useState(false);
+  const filteredItems = useMemo(() => menuItems.filter((item) => { const q = query.toLowerCase(); const matchesQuery = item.name.toLowerCase().includes(q) || item.description.toLowerCase().includes(q); const matchesCategory = category === "All" || item.category === category; const matchesPrice = price === "All prices" || (price === "Under ₹200" && item.price < 200) || (price === "₹200 – ₹300" && item.price >= 200 && item.price <= 300) || (price === "Above ₹300" && item.price > 300); return matchesQuery && matchesCategory && matchesPrice; }), [category, price, query]);
+  const visibleItems = showAll ? filteredItems : filteredItems.slice(0, 8);
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/auth/login`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ restaurantCode: form.get("restaurantCode"), email: form.get("email"), phone: form.get("phone"), password: form.get("password") }) });
+    if (!response.ok) { window.alert("Invalid login details"); return; }
+    const result = await response.json() as { data: { redirectTo: string } };
+    window.location.href = result.data.redirectTo;
+  }
+  return <main className="site-shell">
+    <header className="topbar"><div className="brand-lockup"><div className="brand-mark">TC</div><div><p className="eyebrow">Welcome to</p><h1>Tasty Corner</h1></div></div><button className="owner-button" onClick={() => setLoginOpen(true)} aria-label="Open owner login"><UserIcon /><span>Owner login</span></button></header>
+    <section className="hero"><div className="hero-copy"><p className="eyebrow warm">Freshly made, always worth it</p><h2>Good food.<br /><em>Good mood.</em></h2><p>Local flavours, familiar favourites, and little surprises from our kitchen in Kerala.</p></div><div className="hero-art" aria-label="Illustration of a meal"><span>🍔</span><i>✦</i><b>since<br />2019</b></div></section>
+    <section className="menu-section" aria-label="Restaurant menu"><div className="section-heading"><div><p className="eyebrow">Our menu</p><h2>What are you craving?</h2></div><span className="open-badge"><i /> Open now</span></div>
+      <div className="controls"><label className="search-box"><SearchIcon /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search dishes..." aria-label="Search dishes" />{query && <button onClick={() => setQuery("")} aria-label="Clear search">×</button>}</label><select value={price} onChange={(event) => setPrice(event.target.value)} aria-label="Filter by price"><option>All prices</option><option>Under ₹200</option><option>₹200 – ₹300</option><option>Above ₹300</option></select></div>
+      <nav className="category-row" aria-label="Menu categories">{categories.map((item) => <button key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}>{item}</button>)}</nav>
+      {visibleItems.length > 0 ? <div className="menu-grid">{visibleItems.map((item) => <article className={`menu-card ${!item.available ? "unavailable" : ""}`} key={item.id}><div className="food-image"><img src={item.image} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} /><span className="image-fallback">{item.emoji}</span>{!item.available && <span className="sold-out">Unavailable</span>}</div><div className="card-content"><div className="card-title"><h3>{item.name}</h3><strong>₹{item.price}</strong></div><p>{item.description}</p></div></article>)}</div> : <div className="empty-state"><span>⌕</span><h3>No dishes found</h3><p>Try another search or category.</p></div>}
+      {filteredItems.length > 8 && <button className="load-more" onClick={() => setShowAll(!showAll)}>{showAll ? "Show less" : `View all ${filteredItems.length} dishes`} <span>↓</span></button>}
+    </section><footer><span>Made with care at Tasty Corner</span><span>Scan. Choose. Enjoy.</span></footer>
+    {loginOpen && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLoginOpen(false); }}><div className="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-heading"><button className="close-button" onClick={() => setLoginOpen(false)} aria-label="Close login">×</button><div className="modal-icon">TC</div><p className="eyebrow">Tasty Corner dashboard</p><h2 id="login-heading">Welcome back</h2><p className="modal-subtitle">Sign in to manage your menu.</p><form onSubmit={handleLogin}><label>Restaurant code<input name="restaurantCode" required placeholder="e.g. TASTY001" /></label><label>Email address<input name="email" type="email" required placeholder="you@example.com" /></label><label>Phone number<input name="phone" required inputMode="numeric" placeholder="10-digit phone number" /></label><label>Password<input name="password" required type="password" placeholder="••••••••" /></label><button className="login-submit" type="submit">Sign in <span>→</span></button></form><p className="demo-hint">Demo access: TASTY001 · owner@tastycorner.demo</p></div></div>}
+  </main>;
+}
