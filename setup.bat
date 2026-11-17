@@ -3,58 +3,43 @@ setlocal
 
 echo.
 echo ============================================
-echo   Tasty Corner - Backend Setup
+echo   Tasty Corner - Database Setup & Seed
 echo ============================================
 echo.
 
-cd /d "c:\Users\ADMIN\OneDrive\Desktop\menu\server"
-if errorlevel 1 (
-  echo ERROR: Could not navigate to server directory
-  pause
-  exit /b 1
-)
+cd /d "c:\Users\ADMIN\OneDrive\Desktop\menu"
 
-echo [1/4] Installing server dependencies...
-call npm install
+echo [1/2] Updating database (removes Restaurant & Session, seeds data)...
+call node seed.mjs
 if errorlevel 1 (
-  echo ERROR: npm install failed
+  echo ERROR: Database setup failed!
   pause
   exit /b 1
 )
 
 echo.
-echo [2/4] Generating Prisma client...
+echo [2/2] Generating Prisma client...
+cd /d "c:\Users\ADMIN\OneDrive\Desktop\menu\server"
 call npx prisma generate
 if errorlevel 1 (
-  echo ERROR: prisma generate failed
-  pause
-  exit /b 1
-)
-
-echo.
-echo [3/4] Running database migrations...
-call npx prisma migrate dev --name init
-if errorlevel 1 (
-  echo WARNING: migrate dev failed, trying deploy...
-  call npx prisma migrate deploy
-)
-
-echo.
-echo [4/4] Seeding database with demo data...
-call npm run db:seed
-if errorlevel 1 (
-  echo ERROR: seed failed
-  pause
-  exit /b 1
+  echo WARNING: Prisma generate had an issue.
 )
 
 echo.
 echo ============================================
-echo   Setup complete! Database seeded.
-echo   Now start the servers:
-echo     Server: cd server ^&^& npm run dev
-echo     Client: cd client ^&^& npm run dev
+echo   Setup complete! Database is ready.
+echo.
+echo   Owner Login:
+echo     Name    : Demo Owner
+echo     Email   : owner@tastycorner.demo
+echo     Phone   : 9876543210
+echo     Password: Owner@123
+echo.
+echo   Manager Login:
+echo     Name    : Demo Manager One
+echo     Email   : manager1@tastycorner.demo
+echo     Phone   : 9876543211
+echo     Password: Manager@123
 echo ============================================
 echo.
 pause
-

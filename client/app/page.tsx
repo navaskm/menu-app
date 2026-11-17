@@ -1,5 +1,7 @@
 "use client";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Category = { id: string; name: string };
@@ -13,17 +15,10 @@ type MenuItem = {
   category: { id: string; name: string };
 };
 type Restaurant = { id: string; name: string; logo: string | null; tagline: string | null };
+type AuthUser = { id: string; name: string; role: "OWNER" | "MANAGER"; email: string; phone: string };
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 const PRICE_RANGES = ["All prices", "Under ₹200", "₹200 – ₹300", "Above ₹300"] as const;
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  Burgers: "🍔", Pizza: "🍕", Sandwiches: "🥪",
-  Juices: "🍹", Shakes: "🥤", Snacks: "🍟", Desserts: "🍰",
-};
-function itemEmoji(item: MenuItem) {
-  return CATEGORY_EMOJI[item.category.name] ?? "🍽️";
-}
 
 // ── Skeleton card ─────────────────────────────────────────────────────────────
 function SkeletonCard() {
@@ -56,8 +51,28 @@ export default function Home() {
   const [showAll, setShowAll] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
 
-  // ── Fetch ──────────────────────────────────────────────────────────────────
+  // ── Persistent Auth Check ──────────────────────────────────────────────────
+  useEffect(() => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("tasty_token") : null;
+    const headers: HeadersInit = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    fetch(`${API}/api/auth/me`, { credentials: "include", headers })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) => {
+        if (res?.data) {
+          setCurrentUser(res.data);
+        } else {
+          setCurrentUser(null);
+        }
+      })
+      .catch(() => setCurrentUser(null));
+  }, []);
+
+  // ── Fetch Menu & Categories ────────────────────────────────────────────────
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -71,7 +86,7 @@ export default function Home() {
         setCategories(Array.isArray(categoriesRes.data) ? categoriesRes.data : []);
         setMenuItems(Array.isArray(menuRes.data) ? menuRes.data : []);
       })
-      .catch(() => setError("Could not connect to the server. Please try again."))
+      .catch(() => setError("Could not connect to the server. Please check that the backend is running."))
       .finally(() => setLoading(false));
   }, []);
 
@@ -110,17 +125,26 @@ export default function Home() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          restaurantCode: form.get("restaurantCode"),
+          name: form.get("name"),
           email: form.get("email"),
           phone: form.get("phone"),
           password: form.get("password"),
         }),
       });
+
+      const result = await response.json();
       if (!response.ok) {
-        setLoginError("Invalid login details. Please check your credentials.");
+        setLoginError(result.error ?? "Invalid login details. Please check your credentials.");
         return;
       }
-      const result = (await response.json()) as { data: { redirectTo: string } };
+
+      if (result.data?.token) {
+        localStorage.setItem("tasty_token", result.data.token);
+      }
+      if (result.data?.user) {
+        setCurrentUser(result.data.user);
+      }
+      setLoginOpen(false);
       window.location.href = result.data.redirectTo;
     } catch {
       setLoginError("Could not connect to server. Is the backend running?");
@@ -129,11 +153,22 @@ export default function Home() {
     }
   }
 
+  // ── Logout ─────────────────────────────────────────────────────────────────
+  async function handleLogout() {
+    const token = typeof window !== "undefined" ? localStorage.getItem("tasty_token") : null;
+    const headers: HeadersInit = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    try {
+      await fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include", headers });
+    } catch {}
+    localStorage.removeItem("tasty_token");
+    setCurrentUser(null);
+  }
+
   const restaurantName = restaurant?.name ?? "Tasty Corner";
-  const restaurantTagline = restaurant?.tagline ?? "Freshly made, always worth it";
   const initials = restaurantName.slice(0, 2).toUpperCase();
 
-  // shared input class
   const inputCls =
     "mt-[6px] block w-full rounded-[7px] border border-[#e5e1dc] p-3 text-[13px] text-[#292524] outline-none transition-colors focus:border-[#e58b45]";
 
@@ -143,7 +178,6 @@ export default function Home() {
       {/* ── Topbar ── */}
       <header className="flex h-[86px] items-center justify-between border-b border-[#e5e1dc] px-[clamp(20px,5vw,76px)] max-[620px]:h-[72px]">
         <div className="flex items-center gap-[11px]">
-          {/* Brand mark */}
           <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-full bg-[#e58b45] text-[13px] font-bold tracking-[0.5px] text-white [font-family:Georgia,serif] max-[620px]:h-9 max-[620px]:w-9">
             {initials}
           </div>
@@ -157,19 +191,52 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Owner login button */}
-        <button
-          className="flex cursor-pointer items-center gap-2 rounded-full border border-[#e5e1dc] bg-transparent px-[14px] py-[10px] text-[12px] text-[#292524] transition-colors hover:border-[#e58b45] max-[620px]:px-[11px] max-[620px]:py-2"
-          onClick={() => setLoginOpen(true)}
-          aria-label="Open owner login"
-        >
-          <span aria-hidden="true" className="text-[20px] leading-[12px]">♙</span>
-          <span className="max-[620px]:hidden">Owner login</span>
-        </button>
+        {/* ── User Auth State in Header ── */}
+        {currentUser ? (
+          <div className="flex items-center gap-2">
+            <Link
+              href={currentUser.role === "OWNER" ? "/dashboard/owner" : "/dashboard/manager"}
+              className="flex cursor-pointer items-center gap-2 rounded-full border border-[#e58b45] bg-[#fff7ed] px-[14px] py-[10px] text-[12px] font-bold text-[#e58b45] transition-colors hover:bg-[#e58b45] hover:text-white max-[620px]:px-[11px] max-[620px]:py-2"
+            >
+              <span>Dashboard ({currentUser.role === "OWNER" ? "Owner" : "Manager"})</span>
+              <span aria-hidden="true">↗</span>
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="cursor-pointer rounded-full border border-[#e5e1dc] bg-transparent px-3 py-[10px] text-[12px] text-[#78716c] hover:border-[#292524] hover:text-[#292524] max-[620px]:px-2 max-[620px]:py-2"
+              title="Logout"
+            >
+              Logout
+            </button>
+          </div>
+        ) : (
+          <button
+            className="flex cursor-pointer items-center gap-2 rounded-full border border-[#e5e1dc] bg-transparent px-[14px] py-[10px] text-[12px] text-[#292524] transition-colors hover:border-[#e58b45] max-[620px]:px-[11px] max-[620px]:py-2"
+            onClick={() => setLoginOpen(true)}
+            aria-label="Open login"
+          >
+            <span aria-hidden="true" className="text-[20px] leading-[12px]">♙</span>
+            <span className="max-[620px]:hidden">Owner / Manager login</span>
+          </button>
+        )}
       </header>
 
       {/* ── Menu section ── */}
       <section className="px-[clamp(20px,5vw,76px)] pb-[60px] pt-[52px] max-[620px]:pt-[38px]" aria-label="Restaurant menu">
+
+        {/* Section heading */}
+        <div className="mb-[25px] flex items-end justify-between max-[620px]:items-center">
+          <div>
+            <p className="m-0 mb-[5px] text-[10px] font-bold uppercase tracking-[1.7px] text-[#78716c]">Our menu</p>
+            <h2 className="m-0 text-[31px] font-bold tracking-[-0.8px] [font-family:Georgia,serif] max-[620px]:text-[27px]">
+              What are you craving?
+            </h2>
+          </div>
+          <span className="flex items-center text-[11px] font-bold text-[#6e8453]">
+            <span className="mr-[6px] inline-block h-[7px] w-[7px] rounded-full bg-[#86a56b] max-[620px]:mr-0" aria-hidden="true" />
+            <span className="max-[620px]:hidden">Open now</span>
+          </span>
+        </div>
 
         {/* Error banner */}
         {error && (
@@ -242,10 +309,10 @@ export default function Home() {
               >
                 {/* Image */}
                 <div className="relative h-[166px] overflow-hidden bg-[#f1e9de] max-[620px]:h-[128px]">
-                  {item.imageUrl && (
+                  {item.imageUrl ? (
                     <img
                       src={item.imageUrl}
-                      alt=""
+                      alt={item.name}
                       loading="lazy"
                       className={`block h-full w-full object-cover ${!item.isAvailable ? "[filter:grayscale(0.75)] opacity-60" : ""}`}
                       onError={(e) => {
@@ -254,13 +321,12 @@ export default function Home() {
                         if (fb) fb.style.display = "flex";
                       }}
                     />
-                  )}
-                  {/* Emoji fallback */}
+                  ) : null}
                   <span
-                    className="absolute inset-0 items-center justify-center text-[58px]"
+                    className="absolute inset-0 flex items-center justify-center text-[48px] bg-[#f7f4ef]"
                     style={{ display: item.imageUrl ? "none" : "flex" }}
                   >
-                    {itemEmoji(item)}
+                    🍽️
                   </span>
                   {/* Unavailable badge */}
                   {!item.isAvailable && (
@@ -285,7 +351,7 @@ export default function Home() {
                   </p>
                   <div className="mt-2">
                     <span className="inline-block rounded-full bg-[#f4efe7] px-2 py-[2px] text-[10px] font-semibold uppercase tracking-[0.5px] text-[#78716c]">
-                      {item.category.name}
+                      {item.category?.name}
                     </span>
                   </div>
                 </div>
@@ -324,7 +390,7 @@ export default function Home() {
       {/* ── Login modal ── */}
       {loginOpen && (
         <div
-          className="fixed inset-0 z-10 grid place-items-center p-5 bg-[rgba(32,27,21,0.67)]"
+          className="fixed inset-0 z-20 grid place-items-center p-5 bg-[rgba(32,27,21,0.67)]"
           role="presentation"
           onMouseDown={(e) => { if (e.target === e.currentTarget) setLoginOpen(false); }}
         >
@@ -349,13 +415,13 @@ export default function Home() {
             </div>
 
             <p className="m-0 mb-[5px] text-[10px] font-bold uppercase tracking-[1.7px] text-[#78716c]">
-              {restaurantName} dashboard
+              Tasty Corner Dashboard
             </p>
             <h2 id="login-heading" className="m-0 text-[29px] font-bold [font-family:Georgia,serif]">
               Welcome back
             </h2>
             <p className="mb-[25px] mt-[7px] text-[13px] text-[#78716c]">
-              Sign in to manage your menu.
+              Sign in with your Name, Email, Phone and Password.
             </p>
 
             {/* Login error */}
@@ -367,20 +433,36 @@ export default function Home() {
 
             <form onSubmit={handleLogin} className="grid gap-[14px]">
               <label className="text-[11px] font-bold text-[#292524]">
-                Restaurant code
-                <input name="restaurantCode" required placeholder="e.g. TASTY001" className={inputCls} />
+                Name
+                <input name="name" required placeholder="e.g. Demo Owner" className={inputCls} />
               </label>
               <label className="text-[11px] font-bold text-[#292524]">
                 Email address
-                <input name="email" type="email" required placeholder="you@example.com" className={inputCls} />
+                <input name="email" type="email" required placeholder="owner@tastycorner.demo" className={inputCls} />
               </label>
               <label className="text-[11px] font-bold text-[#292524]">
                 Phone number
-                <input name="phone" required inputMode="numeric" placeholder="10-digit phone number" className={inputCls} />
+                <input name="phone" required inputMode="numeric" placeholder="9876543210" className={inputCls} />
               </label>
               <label className="text-[11px] font-bold text-[#292524]">
                 Password
-                <input name="password" required type="password" placeholder="••••••••" className={inputCls} />
+                <div className="relative">
+                  <input
+                    name="password"
+                    required
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    className={`${inputCls} pr-10`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer text-[#78716c] transition-colors hover:text-[#292524]"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
               </label>
               <button
                 type="submit"
@@ -391,9 +473,11 @@ export default function Home() {
               </button>
             </form>
 
-            <p className="mb-0 mt-5 border-t border-[#e5e1dc] pt-[14px] text-[10px] leading-[1.5] text-[#78716c]">
-              Demo: TASTY001 · owner@tastycorner.demo · 9876543210 · Owner@123
-            </p>
+            <div className="mt-4 border-t border-[#e5e1dc] pt-3 text-[11px] text-[#78716c]">
+              <p className="m-0 font-bold text-[#292524]">Demo Credentials:</p>
+              <p className="m-0 mt-1">Owner: Demo Owner · owner@tastycorner.demo · 9876543210 · Owner@123</p>
+              <p className="m-0 mt-1">Manager: Demo Manager One · manager1@tastycorner.demo · 9876543211 · Manager@123</p>
+            </div>
           </div>
         </div>
       )}

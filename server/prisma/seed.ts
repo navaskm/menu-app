@@ -36,25 +36,15 @@ const items: [string, string, number, string][] = [
 ];
 
 async function main() {
-  if (process.env.NODE_ENV === "production") throw new Error("Demo seed is disabled in production");
-
-  console.log("Seeding database...\n");
-
-  // ── Restaurant ────────────────────────────────────────────────────────────
-  const restaurant = await db.restaurant.upsert({
-    where:  { restaurantCode: "TASTY001" },
-    update: { name: "Tasty Corner", tagline: "Freshly made, always worth it" },
-    create: { name: "Tasty Corner", restaurantCode: "TASTY001", tagline: "Freshly made, always worth it" },
-  });
-  console.log(`✓ Restaurant: ${restaurant.name} (${restaurant.restaurantCode})`);
+  console.log("Seeding database (Clean schema: No Restaurant table, No Session table)...\n");
 
   // ── Categories ────────────────────────────────────────────────────────────
   const categoryMap = new Map<string, string>();
   for (const name of categories) {
     const category = await db.category.upsert({
-      where:  { restaurantId_name: { restaurantId: restaurant.id, name } },
+      where:  { name },
       update: { isActive: true },
-      create: { name, restaurantId: restaurant.id },
+      create: { name },
     });
     categoryMap.set(name, category.id);
     console.log(`✓ Category: ${name}`);
@@ -63,11 +53,17 @@ async function main() {
   // ── Users ─────────────────────────────────────────────────────────────────
   for (const [name, email, phone, password, role] of users) {
     const existing = await db.user.findUnique({
-      where: { restaurantId_email: { restaurantId: restaurant.id, email } },
+      where: { email },
     });
     if (!existing) {
       await db.user.create({
-        data: { name, email, phone, password: await bcrypt.hash(password, 12), role, restaurantId: restaurant.id },
+        data: {
+          name,
+          email,
+          phone,
+          password: await bcrypt.hash(password, 12),
+          role,
+        },
       });
       console.log(`✓ User created: ${name} (${role})`);
     } else {
@@ -77,23 +73,37 @@ async function main() {
 
   // ── Menu Items ────────────────────────────────────────────────────────────
   for (const [name, category, price, description] of items) {
-    const id = `${restaurant.id}-${name.toLowerCase().replaceAll(" ", "-")}`;
     const catId = categoryMap.get(category)!;
-    await db.menuItem.upsert({
-      where:  { id },
-      update: { name, description, price },
-      create: { id, name, description, price, categoryId: catId, restaurantId: restaurant.id, isAvailable: true },
-    });
-    console.log(`✓ Item: ${name} — ₹${price}`);
+    const existing = await db.menuItem.findFirst({ where: { name } });
+    if (!existing) {
+      await db.menuItem.create({
+        data: {
+          name,
+          description,
+          price,
+          categoryId: catId,
+          isAvailable: true,
+        },
+      });
+      console.log(`✓ Item created: ${name} — ₹${price}`);
+    } else {
+      console.log(`→ Item exists: ${name}`);
+    }
   }
 
   console.log("\n✅ Seed complete!");
   console.log("──────────────────────────────────");
-  console.log("Demo login:");
-  console.log("  Code    : TASTY001");
+  console.log("Owner login details:");
+  console.log("  Name    : Demo Owner");
   console.log("  Email   : owner@tastycorner.demo");
   console.log("  Phone   : 9876543210");
   console.log("  Password: Owner@123");
+  console.log("──────────────────────────────────");
+  console.log("Manager login details:");
+  console.log("  Name    : Demo Manager One");
+  console.log("  Email   : manager1@tastycorner.demo");
+  console.log("  Phone   : 9876543211");
+  console.log("  Password: Manager@123");
   console.log("──────────────────────────────────");
 }
 

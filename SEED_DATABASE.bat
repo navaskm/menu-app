@@ -2,45 +2,43 @@
 title Tasty Corner - Database Setup
 echo.
 echo ============================================
-echo   TASTY CORNER - Database Setup (Prisma v7)
+echo   TASTY CORNER - Database Setup
+echo   (Removes Restaurant & Session, Seeds DB)
 echo ============================================
 echo.
 
-cd /d "c:\Users\ADMIN\OneDrive\Desktop\menu\server"
-echo Working dir: %CD%
-echo.
+cd /d "c:\Users\ADMIN\OneDrive\Desktop\menu"
 
-echo [Step 1/3] Generating Prisma client...
+echo [Step 1/2] Updating database tables & seeding data...
+call node seed.mjs
+if %errorlevel% neq 0 (
+  echo ERROR: Database setup failed!
+  pause & exit /b 1
+)
+
+echo.
+echo [Step 2/2] Generating Prisma client types...
+cd /d "c:\Users\ADMIN\OneDrive\Desktop\menu\server"
 call npx prisma generate
 if %errorlevel% neq 0 (
-  echo ERROR: prisma generate failed!
-  pause & exit /b 1
-)
-echo OK!
-
-echo.
-echo [Step 2/3] Pushing schema to database (creates tables)...
-call npx prisma db push
-if %errorlevel% neq 0 (
-  echo ERROR: db push failed! Check DATABASE_URL in server\.env
-  pause & exit /b 1
-)
-echo OK!
-
-echo.
-echo [Step 3/3] Seeding demo data...
-call npx tsx prisma/seed.ts
-if %errorlevel% neq 0 (
-  echo ERROR: Seed failed!
-  pause & exit /b 1
+  echo WARNING: Prisma generate had an issue, but DB is seeded.
 )
 
 echo.
 echo ============================================
-echo   SUCCESS! Open two terminals and run:
-echo     Terminal 1:  cd server  then  npm run dev
-echo     Terminal 2:  cd client  then  npm run dev
-echo   Then open http://localhost:3000
+echo   SUCCESS! Database is updated and seeded.
+echo.
+echo   Owner Login:
+echo     Name    : Demo Owner
+echo     Email   : owner@tastycorner.demo
+echo     Phone   : 9876543210
+echo     Password: Owner@123
+echo.
+echo   Manager Login:
+echo     Name    : Demo Manager One
+echo     Email   : manager1@tastycorner.demo
+echo     Phone   : 9876543211
+echo     Password: Manager@123
 echo ============================================
 echo.
 pause

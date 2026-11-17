@@ -1,11 +1,9 @@
 /**
  * seed.mjs  —  Tasty Corner database setup & seed
+ * Drops old Restaurant and Session tables, creates clean tables, and seeds data.
  *
  * Run from anywhere with:
  *   node seed.mjs
- *
- * Requirements: node 18+ (built-in fetch not needed, uses pg via node)
- * The pg package comes pre-installed as a transitive dep of @prisma/adapter-neon
  */
 
 import { createRequire } from "module";
@@ -32,7 +30,7 @@ try {
       val = val.slice(1, -1);
     if (!process.env[key]) process.env[key] = val;
   }
-  console.log("✓ Loaded .env");
+  console.log("✓ Loaded server/.env");
 } catch (e) {
   console.error("✗ Could not load server/.env:", e.message);
   process.exit(1);
@@ -49,7 +47,6 @@ console.log("✓ DATABASE_URL found");
 const require = createRequire(import.meta.url);
 let Client;
 try {
-  // @neondatabase/serverless is already installed (dep of @prisma/adapter-neon)
   const neon = require(resolve(__dirname, "server/node_modules/@neondatabase/serverless"));
   Client = neon.Client;
   console.log("✓ Using @neondatabase/serverless");
@@ -79,7 +76,6 @@ try {
 }
 
 function cuid() {
-  // Simple cuid-like unique ID
   const ts = Date.now().toString(36);
   const rnd = randomBytes(8).toString("base64url").slice(0, 8);
   return `c${ts}${rnd}`;
@@ -87,20 +83,20 @@ function cuid() {
 
 async function hashPw(password) {
   if (bcrypt) return bcrypt.hash(password, 12);
-  // Fallback: SHA256 (not production-safe, only for demo if bcrypt missing)
   console.warn("  ⚠ bcrypt not found — using SHA256 hash (demo only)");
   return createHash("sha256").update(password).digest("hex");
 }
 
 // ── Data ─────────────────────────────────────────────────────────────────────
-const RESTAURANT_CODE = "TASTY001";
 const CATEGORIES = ["Burgers", "Pizza", "Sandwiches", "Juices", "Shakes", "Snacks", "Desserts"];
+
 const USERS = [
-  { name: "Demo Owner",        email: "owner@tastycorner.demo",    phone: "9876543210", password: "Owner@123",   role: "OWNER" },
-  { name: "Demo Manager One",  email: "manager1@tastycorner.demo", phone: "9876543211", password: "Manager@123", role: "MANAGER" },
-  { name: "Demo Manager Two",  email: "manager2@tastycorner.demo", phone: "9876543212", password: "Manager@123", role: "MANAGER" },
-  { name: "Demo Manager Three",email: "manager3@tastycorner.demo", phone: "9876543213", password: "Manager@123", role: "MANAGER" },
+  { name: "Demo Owner",         email: "owner@tastycorner.demo",    phone: "9876543210", password: "Owner@123",   role: "OWNER" },
+  { name: "Demo Manager One",   email: "manager1@tastycorner.demo", phone: "9876543211", password: "Manager@123", role: "MANAGER" },
+  { name: "Demo Manager Two",   email: "manager2@tastycorner.demo", phone: "9876543212", password: "Manager@123", role: "MANAGER" },
+  { name: "Demo Manager Three", email: "manager3@tastycorner.demo", phone: "9876543213", password: "Manager@123", role: "MANAGER" },
 ];
+
 const ITEMS = [
   ["Smoky Chicken Burger",  "Burgers",    220, "Char-grilled chicken, smoked mayo, crisp lettuce and pickles."],
   ["Kerala Beef Burger",    "Burgers",    260, "Spiced beef patty, caramelised onions and house pepper sauce."],
@@ -119,18 +115,16 @@ const ITEMS = [
   ["Warm Fudge Brownie",    "Desserts",   170, "Soft chocolate brownie served warm with vanilla ice cream."],
 ];
 
-// ── Migration SQL ─────────────────────────────────────────────────────────────
-const MIGRATION_SQL = `
-CREATE TABLE IF NOT EXISTS "Restaurant" (
-  "id"             TEXT NOT NULL DEFAULT gen_random_uuid()::text,
-  "name"           TEXT NOT NULL,
-  "restaurantCode" TEXT NOT NULL UNIQUE,
-  "logo"           TEXT,
-  "tagline"        TEXT,
-  "createdAt"      TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt"      TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY ("id")
-);
+// ── SQL: Drop Restaurant and Session tables, create clean schema ───────────────
+const CLEAN_SQL = `
+-- 1. Remove Session and Restaurant tables completely as requested
+DROP TABLE IF EXISTS "Session" CASCADE;
+DROP TABLE IF EXISTS "Restaurant" CASCADE;
+
+-- 2. Drop existing dependent tables to ensure clean structure without restaurantId
+DROP TABLE IF EXISTS "MenuItem" CASCADE;
+DROP TABLE IF EXISTS "Category" CASCADE;
+DROP TABLE IF EXISTS "User" CASCADE;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'Role') THEN
@@ -138,63 +132,53 @@ DO $$ BEGIN
   END IF;
 END $$;
 
-CREATE TABLE IF NOT EXISTS "User" (
-  "id"           TEXT NOT NULL,
-  "name"         TEXT NOT NULL,
-  "email"        TEXT NOT NULL,
-  "phone"        TEXT NOT NULL,
-  "password"     TEXT NOT NULL,
-  "role"         "Role" NOT NULL,
-  "isActive"     BOOLEAN NOT NULL DEFAULT TRUE,
-  "restaurantId" TEXT NOT NULL,
-  "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY ("id"),
-  UNIQUE ("restaurantId", "email"),
-  UNIQUE ("restaurantId", "phone"),
-  FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS "Session" (
+-- 3. Clean User table (with persistent token column)
+CREATE TABLE "User" (
   "id"        TEXT NOT NULL,
-  "tokenHash" TEXT NOT NULL UNIQUE,
-  "userId"    TEXT NOT NULL,
-  "expiresAt" TIMESTAMP(3) NOT NULL,
+  "name"      TEXT NOT NULL,
+  "email"     TEXT NOT NULL UNIQUE,
+  "phone"     TEXT NOT NULL UNIQUE,
+  "password"  TEXT NOT NULL,
+  "role"      "Role" NOT NULL,
+  "isActive"  BOOLEAN NOT NULL DEFAULT TRUE,
+  "token"     TEXT UNIQUE,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY ("id"),
-  FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY ("id")
 );
+CREATE INDEX IF NOT EXISTS "User_role_idx" ON "User"("role");
 
-CREATE TABLE IF NOT EXISTS "Category" (
-  "id"           TEXT NOT NULL,
-  "name"         TEXT NOT NULL,
-  "description"  TEXT,
-  "isActive"     BOOLEAN NOT NULL DEFAULT TRUE,
-  "restaurantId" TEXT NOT NULL,
-  "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY ("id"),
-  UNIQUE ("restaurantId", "name"),
-  FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE
+-- 4. Clean Category table
+CREATE TABLE "Category" (
+  "id"          TEXT NOT NULL,
+  "name"        TEXT NOT NULL UNIQUE,
+  "description" TEXT,
+  "isActive"    BOOLEAN NOT NULL DEFAULT TRUE,
+  "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY ("id")
 );
+CREATE INDEX IF NOT EXISTS "Category_isActive_idx" ON "Category"("isActive");
 
-CREATE TABLE IF NOT EXISTS "MenuItem" (
-  "id"           TEXT NOT NULL,
-  "name"         TEXT NOT NULL,
-  "description"  TEXT NOT NULL,
-  "price"        DECIMAL(10,2) NOT NULL,
-  "imageUrl"     TEXT,
-  "imageKey"     TEXT,
-  "isAvailable"  BOOLEAN NOT NULL DEFAULT TRUE,
-  "categoryId"   TEXT NOT NULL,
-  "restaurantId" TEXT NOT NULL,
-  "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+-- 5. Clean MenuItem table
+CREATE TABLE "MenuItem" (
+  "id"          TEXT NOT NULL,
+  "name"        TEXT NOT NULL,
+  "description" TEXT NOT NULL,
+  "price"       DECIMAL(10,2) NOT NULL,
+  "imageUrl"    TEXT,
+  "imageKey"    TEXT,
+  "isAvailable" BOOLEAN NOT NULL DEFAULT TRUE,
+  "categoryId"  TEXT NOT NULL,
+  "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY ("id"),
-  FOREIGN KEY ("categoryId")   REFERENCES "Category"("id")   ON DELETE RESTRICT,
-  FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE
+  FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS "MenuItem_categoryId_isAvailable_idx" ON "MenuItem"("categoryId", "isAvailable");
+CREATE INDEX IF NOT EXISTS "MenuItem_name_idx" ON "MenuItem"("name");
 
+-- 6. UploadCleanup table
 CREATE TABLE IF NOT EXISTS "UploadCleanup" (
   "id"        TEXT NOT NULL,
   "objectKey" TEXT NOT NULL,
@@ -204,99 +188,77 @@ CREATE TABLE IF NOT EXISTS "UploadCleanup" (
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY ("id")
 );
-
-CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
-  "id"                      TEXT NOT NULL,
-  "checksum"                TEXT NOT NULL,
-  "finished_at"             TIMESTAMPTZ,
-  "migration_name"          TEXT NOT NULL,
-  "logs"                    TEXT,
-  "rolled_back_at"          TIMESTAMPTZ,
-  "started_at"              TIMESTAMPTZ NOT NULL DEFAULT now(),
-  "applied_steps_count"     INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY ("id")
-);
 `;
 
-// ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   const client = new Client({ connectionString: DATABASE_URL });
   await client.connect();
   console.log("✓ Connected to database");
 
-  // Run migrations
-  console.log("\n── Creating tables (if not exist)…");
-  await client.query(MIGRATION_SQL);
-  console.log("✓ Tables ready");
+  console.log("\n── Removing Restaurant & Session tables, applying clean schema…");
+  await client.query(CLEAN_SQL);
+  console.log("✓ Restaurant and Session tables removed!");
+  console.log("✓ Clean User, Category, and MenuItem tables created!");
 
-  // Upsert restaurant
-  console.log("\n── Seeding restaurant…");
-  const { rows: [restaurant] } = await client.query(`
-    INSERT INTO "Restaurant" ("id", "name", "restaurantCode", "tagline", "updatedAt")
-    VALUES ($1, 'Tasty Corner', 'TASTY001', 'Freshly made, always worth it', CURRENT_TIMESTAMP)
-    ON CONFLICT ("restaurantCode") DO UPDATE SET "name" = EXCLUDED."name", "updatedAt" = CURRENT_TIMESTAMP
-    RETURNING *
-  `, [cuid()]);
-  console.log(`  ✓ Restaurant: ${restaurant.name} (${restaurant.restaurantCode})`);
-
-  // Upsert categories
+  // Seed categories
   console.log("\n── Seeding categories…");
   const categoryMap = {};
   for (const name of CATEGORIES) {
+    const id = cuid();
     const { rows: [cat] } = await client.query(`
-      INSERT INTO "Category" ("id", "name", "restaurantId", "updatedAt")
-      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-      ON CONFLICT ("restaurantId", "name") DO UPDATE SET "isActive" = TRUE, "updatedAt" = CURRENT_TIMESTAMP
+      INSERT INTO "Category" ("id", "name", "updatedAt")
+      VALUES ($1, $2, CURRENT_TIMESTAMP)
+      ON CONFLICT ("name") DO UPDATE SET "isActive" = TRUE, "updatedAt" = CURRENT_TIMESTAMP
       RETURNING *
-    `, [cuid(), name, restaurant.id]);
+    `, [id, name]);
     categoryMap[name] = cat.id;
     console.log(`  ✓ Category: ${name}`);
   }
 
-  // Upsert users
+  // Seed users
   console.log("\n── Seeding users…");
   for (const u of USERS) {
-    const existing = await client.query(
-      `SELECT id FROM "User" WHERE "restaurantId" = $1 AND "email" = $2`,
-      [restaurant.id, u.email]
-    );
-    if (existing.rows.length === 0) {
-      const hashed = await hashPw(u.password);
-      await client.query(`
-        INSERT INTO "User" ("id","name","email","phone","password","role","restaurantId","updatedAt")
-        VALUES ($1,$2,$3,$4,$5,$6::\"Role\",$7,CURRENT_TIMESTAMP)
-      `, [cuid(), u.name, u.email, u.phone, hashed, u.role, restaurant.id]);
-      console.log(`  ✓ Created user: ${u.name} (${u.role})`);
-    } else {
-      console.log(`  → Skipped (exists): ${u.email}`);
-    }
+    const hashed = await hashPw(u.password);
+    await client.query(`
+      INSERT INTO "User" ("id", "name", "email", "phone", "password", "role", "updatedAt")
+      VALUES ($1, $2, $3, $4, $5, $6::\"Role\", CURRENT_TIMESTAMP)
+      ON CONFLICT ("email") DO UPDATE SET "name" = EXCLUDED."name", "phone" = EXCLUDED."phone", "updatedAt" = CURRENT_TIMESTAMP
+    `, [cuid(), u.name, u.email, u.phone, hashed, u.role]);
+    console.log(`  ✓ User: ${u.name} (${u.role})`);
   }
 
-  // Upsert menu items
+  // Seed menu items
   console.log("\n── Seeding menu items…");
   for (const [name, cat, price, description] of ITEMS) {
-    const slug = `${restaurant.id}-${name.toLowerCase().replaceAll(" ", "-")}`;
     const catId = categoryMap[cat];
-    if (!catId) { console.warn(`  ✗ Category not found: ${cat}`); continue; }
+    if (!catId) continue;
+    const id = cuid();
     await client.query(`
-      INSERT INTO "MenuItem" ("id","name","description","price","categoryId","restaurantId","isAvailable","updatedAt")
-      VALUES ($1,$2,$3,$4,$5,$6,TRUE,CURRENT_TIMESTAMP)
-      ON CONFLICT ("id") DO UPDATE SET "name"=EXCLUDED."name", "updatedAt"=CURRENT_TIMESTAMP
-    `, [slug, name, description, price, catId, restaurant.id]);
+      INSERT INTO "MenuItem" ("id", "name", "description", "price", "categoryId", "isAvailable", "updatedAt")
+      VALUES ($1, $2, $3, $4, $5, TRUE, CURRENT_TIMESTAMP)
+    `, [id, name, description, price, catId]);
     console.log(`  ✓ ${name} — ₹${price}`);
   }
 
   await client.end();
-  console.log("\n✅ Database seeded successfully!\n");
-  console.log("Demo login credentials:");
-  console.log("  Restaurant Code : TASTY001");
-  console.log("  Email           : owner@tastycorner.demo");
-  console.log("  Phone           : 9876543210");
-  console.log("  Password        : Owner@123\n");
+  console.log("\n✅ Database updated and seeded successfully!");
+  console.log("─────────────────────────────────────────────");
+  console.log("Owner login details:");
+  console.log("  Name    : Demo Owner");
+  console.log("  Email   : owner@tastycorner.demo");
+  console.log("  Phone   : 9876543210");
+  console.log("  Password: Owner@123");
+  console.log("─────────────────────────────────────────────");
+  console.log("Manager login details:");
+  console.log("  Name    : Demo Manager One");
+  console.log("  Email   : manager1@tastycorner.demo");
+  console.log("  Phone   : 9876543211");
+  console.log("  Password: Manager@123");
+  console.log("─────────────────────────────────────────────\n");
 }
 
 main().catch((err) => {
-  console.error("\n✗ Seed failed:", err.message);
+  console.error("\n✗ Failed:", err.message);
   console.error(err);
   process.exit(1);
 });
