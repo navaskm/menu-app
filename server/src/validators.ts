@@ -1,10 +1,10 @@
 import { z } from "zod";
 
 export const loginSchema = z.object({
-  name: z.string().trim().min(1, "Name is required"),
+  name: z.string().trim().optional().default(""),
   email: z.string().trim().email("Invalid email"),
   phone: z.string().regex(/^\d{10,15}$/, "10 to 15 digit phone number required"),
-  password: z.string().min(6, "Password must be at least 6 characters").max(128),
+  password: z.string().optional().default(""),
 });
 
 export const menuSchema = z.object({
@@ -22,11 +22,23 @@ export const categorySchema = z.object({
   description: z.string().trim().max(300).optional().nullable().or(z.literal("")),
 });
 
+export const createManagerSchema = z.object({
+  email: z.string().trim().email("Invalid email"),
+  phone: z.string().regex(/^\d{10,15}$/, "10 to 15 digit phone number required"),
+});
+
+export const updateManagerSchema = z.object({
+  name: z.string().trim().optional().default(""),
+  email: z.string().trim().email("Invalid email").optional(),
+  phone: z.string().regex(/^\d{10,15}$/, "10 to 15 digit phone number required").optional(),
+  password: z.string().optional().default(""),
+});
+
 export const managerSchema = z.object({
-  name: z.string().trim().min(2).max(100),
+  name: z.string().trim().optional().default(""),
   email: z.string().email(),
   phone: z.string().regex(/^\d{10,15}$/, "10 to 15 digit phone number required"),
-  password: z.string().min(6).max(128),
+  password: z.string().optional().default(""),
 });
 
 export const parseBody = <T>(schema: z.ZodType<T>, body: unknown) => schema.parse(body);

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
-import { Plus, Edit2, Trash2, CheckCircle2, XCircle, ArrowLeft, LogOut, RefreshCw } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, XCircle, ArrowLeft, LogOut, RefreshCw, X } from "lucide-react";
 
 export type Role = "OWNER" | "MANAGER";
 
@@ -17,7 +17,7 @@ type MenuItem = {
   categoryId: string;
   category: { id: string; name: string };
 };
-type Manager = { id: string; name: string; email: string; phone: string; isActive: boolean; createdAt: string };
+type Manager = { id: string; name: string; email: string; phone: string; password?: string; createdAt: string };
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -44,6 +44,7 @@ export default function Dashboard({ role }: DashboardProps) {
   const [editingCat, setEditingCat] = useState<Category | null>(null);
 
   const [managerModalOpen, setManagerModalOpen] = useState(false);
+  const [editingManager, setEditingManager] = useState<Manager | null>(null);
 
   // Helper for auth headers
   const getHeaders = (hasBody = false): HeadersInit => {
@@ -181,9 +182,10 @@ export default function Dashboard({ role }: DashboardProps) {
     e.preventDefault();
     setActionError(null);
     const form = new FormData(e.currentTarget);
+    const desc = form.get("description");
     const payload = {
       name: form.get("name") as string,
-      description: (form.get("description") as string)?.trim() || null,
+      description: typeof desc === "string" && desc.trim() ? desc.trim() : (editingCat?.description ?? null),
     };
 
     try {
@@ -235,49 +237,53 @@ export default function Dashboard({ role }: DashboardProps) {
     e.preventDefault();
     setActionError(null);
     const form = new FormData(e.currentTarget);
-    const payload = {
-      name: form.get("name") as string,
-      email: form.get("email") as string,
-      phone: form.get("phone") as string,
-      password: form.get("password") as string,
-    };
 
     try {
-      const res = await fetch(`${API}/api/managers`, {
-        method: "POST",
-        credentials: "include",
-        headers: getHeaders(true),
-        body: JSON.stringify(payload),
-      });
+      if (editingManager) {
+        const payload = {
+          name: (form.get("name") as string)?.trim() ?? "",
+          email: (form.get("email") as string)?.trim(),
+          phone: (form.get("phone") as string)?.trim(),
+          password: (form.get("password") as string)?.trim() ?? "",
+        };
 
-      if (!res.ok) {
-        const err = await res.json();
-        setActionError(err.error ?? "Failed to create manager");
-        return;
+        const res = await fetch(`${API}/api/managers/${editingManager.id}`, {
+          method: "PUT",
+          credentials: "include",
+          headers: getHeaders(true),
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          setActionError(err.error ?? "Failed to update manager");
+          return;
+        }
+      } else {
+        const payload = {
+          email: (form.get("email") as string)?.trim(),
+          phone: (form.get("phone") as string)?.trim(),
+        };
+
+        const res = await fetch(`${API}/api/managers`, {
+          method: "POST",
+          credentials: "include",
+          headers: getHeaders(true),
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          setActionError(err.error ?? "Failed to create manager");
+          return;
+        }
       }
 
       setManagerModalOpen(false);
+      setEditingManager(null);
       loadAllData();
     } catch {
-      setActionError("An error occurred while creating manager");
-    }
-  }
-
-  async function handleToggleManagerStatus(man: Manager) {
-    if (!isOwner) return;
-    try {
-      const res = await fetch(`${API}/api/managers/${man.id}/status`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: getHeaders(true),
-        body: JSON.stringify({ isActive: !man.isActive }),
-      });
-      if (!res.ok) throw new Error();
-      setManagers((prev) =>
-        prev.map((m) => (m.id === man.id ? { ...m, isActive: !m.isActive } : m))
-      );
-    } catch {
-      setActionError("Failed to update manager status");
+      setActionError("An error occurred while saving manager");
     }
   }
 
@@ -465,7 +471,10 @@ export default function Dashboard({ role }: DashboardProps) {
 
             {isOwner && activeTab === "managers" && (
               <button
-                onClick={() => setManagerModalOpen(true)}
+                onClick={() => {
+                  setEditingManager(null);
+                  setManagerModalOpen(true);
+                }}
                 className="flex w-full items-center justify-center gap-1.5 rounded-full bg-[#e58b45] px-4 py-2.5 text-[12px] font-bold text-white transition-colors hover:bg-[#d4793a] sm:w-auto"
               >
                 <Plus size={16} /> Add Manager
@@ -569,11 +578,10 @@ export default function Dashboard({ role }: DashboardProps) {
             {activeTab === "categories" && (
               <div className="overflow-hidden rounded-[12px] border border-[#e5e1dc] bg-white shadow-sm">
                 <div className="w-full overflow-x-auto">
-                  <table className="w-full min-w-[650px] text-left text-[13px]">
+                  <table className="w-full min-w-[450px] text-left text-[13px]">
                     <thead className="border-b border-[#e5e1dc] bg-[#faf8f5] text-[11px] font-bold uppercase tracking-wider text-[#78716c]">
                       <tr>
                         <th className="px-4 py-3.5">Category Name</th>
-                        <th className="px-4 py-3.5">Description</th>
                         <th className="px-4 py-3.5">Items in Category</th>
                         <th className="px-4 py-3.5 text-right">Actions</th>
                       </tr>
@@ -584,7 +592,6 @@ export default function Dashboard({ role }: DashboardProps) {
                         return (
                           <tr key={cat.id} className="hover:bg-[#faf8f5] transition-colors">
                             <td className="px-4 py-3 font-bold text-[#292524]">{cat.name}</td>
-                            <td className="px-4 py-3 text-[#78716c]">{cat.description || "—"}</td>
                             <td className="px-4 py-3">
                               <span className="rounded-full bg-[#faf8f5] px-2.5 py-1 text-[11px] font-semibold text-[#78716c]">
                                 {count} {count === 1 ? "item" : "items"}
@@ -613,7 +620,7 @@ export default function Dashboard({ role }: DashboardProps) {
                       })}
                       {categories.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="py-12 text-center text-[#78716c]">
+                          <td colSpan={3} className="py-12 text-center text-[#78716c]">
                             No categories yet. Click &quot;Add Category&quot; to get started.
                           </td>
                         </tr>
@@ -634,7 +641,7 @@ export default function Dashboard({ role }: DashboardProps) {
                         <th className="px-4 py-3.5">Manager Name</th>
                         <th className="px-4 py-3.5">Email</th>
                         <th className="px-4 py-3.5">Phone</th>
-                        <th className="px-4 py-3.5">Account Status</th>
+                        <th className="px-4 py-3.5">Password</th>
                         <th className="px-4 py-3.5 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -643,7 +650,7 @@ export default function Dashboard({ role }: DashboardProps) {
                       {managers.map((man) => (
                         <tr key={man.id} className="transition-colors hover:bg-[#faf8f5]">
                           <td className="px-4 py-3 font-bold text-[#292524]">
-                            {man.name}
+                            {man.name || "—"}
                           </td>
 
                           <td className="px-4 py-3 text-[#78716c]">
@@ -654,31 +661,30 @@ export default function Dashboard({ role }: DashboardProps) {
                             {man.phone}
                           </td>
 
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => handleToggleManagerStatus(man)}
-                              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${man.isActive
-                                ? "bg-green-50 text-green-700 hover:bg-green-100"
-                                : "bg-red-50 text-red-700 hover:bg-red-100"
-                                }`}
-                            >
-                              {man.isActive ? (
-                                <CheckCircle2 size={13} />
-                              ) : (
-                                <XCircle size={13} />
-                              )}
-                              {man.isActive ? "Active" : "Inactive"}
-                            </button>
+                          <td className="px-4 py-3 font-mono text-[12px] text-[#292524]">
+                            {man.password || "—"}
                           </td>
 
                           <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={() => handleDeleteManager(man.id)}
-                              className="rounded p-1.5 text-[#78716c] hover:bg-red-50 hover:text-red-600"
-                              title="Delete"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingManager(man);
+                                  setManagerModalOpen(true);
+                                }}
+                                className="rounded p-1.5 text-[#78716c] hover:bg-[#fff7ed] hover:text-[#e58b45]"
+                                title="Edit"
+                              >
+                                <Edit2 size={15} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteManager(man.id)}
+                                className="rounded p-1.5 text-[#78716c] hover:bg-red-50 hover:text-red-600"
+                                title="Delete"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -704,11 +710,17 @@ export default function Dashboard({ role }: DashboardProps) {
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(32,27,21,0.67)] p-4 overflow-y-auto">
           <div className="relative w-full max-w-[500px] rounded-[14px] bg-white p-6 shadow-xl my-8">
             <button
-              onClick={() => { setItemModalOpen(false); setEditingItem(null); }}
-              className="absolute right-4 top-4 text-xl text-[#78716c]"
+              type="button"
+              onClick={() => {
+                setItemModalOpen(false);
+                setEditingItem(null);
+              }}
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-[#faf8f5] text-[#78716c] transition-all hover:bg-red-50 hover:text-red-600"
+              aria-label="Close modal"
             >
-              ×
+              <X size={20} strokeWidth={2.2} />
             </button>
+
             <h2 className="mb-4 text-xl font-bold [font-family:Georgia,serif]">
               {editingItem ? "Edit Menu Item" : "Add Menu Item"}
             </h2>
@@ -797,10 +809,15 @@ export default function Dashboard({ role }: DashboardProps) {
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(32,27,21,0.67)] p-4">
           <div className="relative w-full max-w-[420px] rounded-[14px] bg-white p-6 shadow-xl">
             <button
-              onClick={() => { setCatModalOpen(false); setEditingCat(null); }}
-              className="absolute right-4 top-4 text-xl text-[#78716c]"
+              type="button"
+              onClick={() => {
+                setCatModalOpen(false);
+                setEditingCat(null);
+              }}
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-[#faf8f5] text-[#78716c] transition-all hover:bg-red-50 hover:text-red-600"
+              aria-label="Close modal"
             >
-              ×
+              <X size={20} strokeWidth={2.2} />
             </button>
             <h2 className="mb-4 text-xl font-bold [font-family:Georgia,serif]">
               {editingCat ? "Edit Category" : "Add Category"}
@@ -813,15 +830,6 @@ export default function Dashboard({ role }: DashboardProps) {
                   required
                   defaultValue={editingCat?.name ?? ""}
                   placeholder={isOwner ? "e.g. Beverages" : "e.g. Desserts"}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-[#292524]">Description (optional)</label>
-                <input
-                  name="description"
-                  defaultValue={editingCat?.description ?? ""}
-                  placeholder={isOwner ? "e.g. Refreshing cold & hot drinks" : "e.g. Delicious sweet treats"}
                   className={inputClass}
                 />
               </div>
@@ -845,38 +853,75 @@ export default function Dashboard({ role }: DashboardProps) {
         </div>
       )}
 
-      {/* ── MODAL: ADD MANAGER (Owner Only) ─────────────────────────────────── */}
+      {/* ── MODAL: ADD / EDIT MANAGER (Owner Only) ───────────────────────────── */}
       {isOwner && managerModalOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-[rgba(32,27,21,0.67)] p-4">
           <div className="relative w-full max-w-[420px] rounded-[14px] bg-white p-6 shadow-xl">
             <button
-              onClick={() => setManagerModalOpen(false)}
-              className="absolute right-4 top-4 text-xl text-[#78716c]"
+              type="button"
+              onClick={() => {
+                setManagerModalOpen(false);
+                setEditingManager(null);
+              }}
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-[#faf8f5] text-[#78716c] transition-all hover:bg-red-50 hover:text-red-600"
+              aria-label="Close modal"
             >
-              ×
+              <X size={20} strokeWidth={2.2} />
             </button>
-            <h2 className="mb-4 text-xl font-bold [font-family:Georgia,serif]">Add New Manager</h2>
+            <h2 className="mb-4 text-xl font-bold [font-family:Georgia,serif]">
+              {editingManager ? "Edit Manager" : "Add New Manager"}
+            </h2>
             <form onSubmit={handleSaveManager} className="space-y-3">
-              <div>
-                <label className="text-[11px] font-bold text-[#292524]">Full Name</label>
-                <input name="name" required placeholder="e.g. John Doe" className={inputClass} />
-              </div>
+              {editingManager && (
+                <div>
+                  <label className="text-[11px] font-bold text-[#292524]">Full Name</label>
+                  <input
+                    name="name"
+                    defaultValue={editingManager.name ?? ""}
+                    placeholder="e.g. John Doe"
+                    className={inputClass}
+                  />
+                </div>
+              )}
               <div>
                 <label className="text-[11px] font-bold text-[#292524]">Email Address</label>
-                <input name="email" type="email" required placeholder="manager@example.com" className={inputClass} />
+                <input
+                  name="email"
+                  type="email"
+                  required
+                  defaultValue={editingManager?.email ?? ""}
+                  placeholder="manager@example.com"
+                  className={inputClass}
+                />
               </div>
               <div>
                 <label className="text-[11px] font-bold text-[#292524]">Phone Number (10 digits)</label>
-                <input name="phone" required placeholder="9876543210" className={inputClass} />
+                <input
+                  name="phone"
+                  required
+                  defaultValue={editingManager?.phone ?? ""}
+                  placeholder="9876543210"
+                  className={inputClass}
+                />
               </div>
-              <div>
-                <label className="text-[11px] font-bold text-[#292524]">Password</label>
-                <input name="password" type="password" required placeholder="••••••••" className={inputClass} />
-              </div>
+              {editingManager && (
+                <div>
+                  <label className="text-[11px] font-bold text-[#292524]">Password</label>
+                  <input
+                    name="password"
+                    defaultValue={editingManager.password ?? ""}
+                    placeholder="••••••••"
+                    className={inputClass}
+                  />
+                </div>
+              )}
               <div className="mt-4 flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setManagerModalOpen(false)}
+                  onClick={() => {
+                    setManagerModalOpen(false);
+                    setEditingManager(null);
+                  }}
                   className="rounded-lg border border-[#e5e1dc] px-4 py-2 text-[12px] font-semibold text-[#78716c]"
                 >
                   Cancel
@@ -885,7 +930,7 @@ export default function Dashboard({ role }: DashboardProps) {
                   type="submit"
                   className="rounded-lg bg-[#e58b45] px-5 py-2 text-[12px] font-bold text-white hover:bg-[#d4793a]"
                 >
-                  Create Manager
+                  {editingManager ? "Update Manager" : "Create Manager"}
                 </button>
               </div>
             </form>

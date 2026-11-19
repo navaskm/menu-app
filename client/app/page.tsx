@@ -1,7 +1,7 @@
 "use client";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, X } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Category = { id: string; name: string };
@@ -393,23 +393,8 @@ export default function Home() {
               aria-label="Close login"
               className="absolute right-[18px] top-[17px] cursor-pointer border-0 bg-transparent p-0 text-[25px] leading-none text-[#78716c]"
             >
-              ×
+              <X size={20} strokeWidth={2.2} />
             </button>
-
-            {/* Modal icon */}
-            <div className="mb-[19px] flex h-[42px] w-[42px] items-center justify-center rounded-full bg-[#e58b45] text-[13px] font-bold tracking-[0.5px] text-white [font-family:Georgia,serif]">
-              {initials}
-            </div>
-
-            <p className="m-0 mb-[5px] text-[10px] font-bold uppercase tracking-[1.7px] text-[#78716c]">
-              Tasty Corner Dashboard
-            </p>
-            <h2 id="login-heading" className="m-0 text-[29px] font-bold [font-family:Georgia,serif]">
-              Welcome back
-            </h2>
-            <p className="mb-[25px] mt-[7px] text-[13px] text-[#78716c]">
-              Sign in with your Name, Email, Phone and Password.
-            </p>
 
             {/* Login error */}
             {loginError && (
@@ -421,7 +406,7 @@ export default function Home() {
             <form onSubmit={handleLogin} className="grid gap-[14px]">
               <label className="text-[11px] font-bold text-[#292524]">
                 Name
-                <input name="name" required placeholder="e.g. Demo Owner" className={inputCls} />
+                <input name="name" placeholder="e.g. Demo Owner" className={inputCls} />
               </label>
               <label className="text-[11px] font-bold text-[#292524]">
                 Email address
@@ -436,7 +421,6 @@ export default function Home() {
                 <div className="relative">
                   <input
                     name="password"
-                    required
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     className={`${inputCls} pr-10`}
@@ -459,12 +443,6 @@ export default function Home() {
                 {loginLoading ? "Signing in…" : "Sign in"} <span>→</span>
               </button>
             </form>
-
-            <div className="mt-4 border-t border-[#e5e1dc] pt-3 text-[11px] text-[#78716c]">
-              <p className="m-0 font-bold text-[#292524]">Demo Credentials:</p>
-              <p className="m-0 mt-1">Owner: Demo Owner · owner@tastycorner.demo · 9876543210 · Owner@123</p>
-              <p className="m-0 mt-1">Manager: Demo Manager One · manager1@tastycorner.demo · 9876543211 · Manager@123</p>
-            </div>
           </div>
         </div>
       )}

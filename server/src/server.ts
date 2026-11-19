@@ -10,7 +10,7 @@ import { z } from "zod";
 import { db } from "./db.js";
 import { env } from "./config.js";
 import { clearSession, createSession, hashPassword, publicUser, requireAuth, requireRole, verifyPassword } from "./auth.js";
-import { categorySchema, loginSchema, managerSchema, menuSchema, parseBody } from "./validators.js";
+import { categorySchema, createManagerSchema, loginSchema, managerSchema, menuSchema, parseBody, updateManagerSchema } from "./validators.js";
 
 const app = express();
 app.use(helmet());
@@ -106,19 +106,37 @@ app.post("/api/auth/login", loginLimiter, async (req, res, next) => {
       where: {
         email: input.email.toLowerCase(),
         phone: input.phone,
-        isActive: true,
       },
     });
 
-    if (!user) return res.status(401).json({ error: "Invalid login details" });
+    if (!user) return res.status(401).json({ error: "Invalid login details (email or phone not found)" });
 
-    // Verify Name match (case-insensitive)
-    if (user.name.trim().toLowerCase() !== input.name.trim().toLowerCase()) {
-      return res.status(401).json({ error: "Invalid login details (name mismatch)" });
-    }
-
-    if (!(await verifyPassword(input.password, user.password))) {
-      return res.status(401).json({ error: "Invalid login details" });
+    if (user.role === "MANAGER") {
+      // For managers: login matches email & phone only.
+      // If manager specifies a name and password, save them to the user record.
+      const updates: { name?: string; password?: string } = {};
+      if (input.name && input.name.trim()) {
+        updates.name = input.name.trim();
+      }
+      if (input.password && input.password.trim()) {
+        updates.password = input.password.trim();
+      }
+      if (Object.keys(updates).length > 0) {
+        await db.user.update({
+          where: { id: user.id },
+          data: updates,
+        });
+        if (updates.name !== undefined) user.name = updates.name;
+        if (updates.password !== undefined) user.password = updates.password;
+      }
+    } else {
+      // OWNER login: verify name and password
+      if (input.name && input.name.trim() && user.name.trim().toLowerCase() !== input.name.trim().toLowerCase()) {
+        return res.status(401).json({ error: "Invalid login details (name mismatch)" });
+      }
+      if (!(await verifyPassword(input.password, user.password))) {
+        return res.status(401).json({ error: "Invalid login details (incorrect password)" });
+      }
     }
 
     const authUser = {
@@ -299,7 +317,7 @@ app.get("/api/managers", requireAuth, requireRole("OWNER"), async (_req, res, ne
   try {
     const data = await db.user.findMany({
       where: { role: "MANAGER" },
-      select: { id: true, name: true, email: true, phone: true, isActive: true, createdAt: true },
+      select: { id: true, name: true, email: true, phone: true, password: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     });
     res.json({ data });
@@ -310,7 +328,7 @@ app.get("/api/managers", requireAuth, requireRole("OWNER"), async (_req, res, ne
 
 app.post("/api/managers", requireAuth, requireRole("OWNER"), async (req, res, next) => {
   try {
-    const input = parseBody(managerSchema, req.body);
+    const input = parseBody(createManagerSchema, req.body);
     const existingEmail = await db.user.findUnique({ where: { email: input.email.toLowerCase() } });
     if (existingEmail) return res.status(409).json({ error: "Email already registered" });
     const existingPhone = await db.user.findUnique({ where: { phone: input.phone } });
@@ -318,13 +336,14 @@ app.post("/api/managers", requireAuth, requireRole("OWNER"), async (req, res, ne
 
     const data = await db.user.create({
       data: {
-        name: input.name,
+        name: "",
         email: input.email.toLowerCase(),
         phone: input.phone,
         role: "MANAGER",
-        password: await hashPassword(input.password),
+        password: "",
+        isActive: true,
       },
-      select: { id: true, name: true, email: true, phone: true, role: true, isActive: true },
+      select: { id: true, name: true, email: true, phone: true, password: true, role: true, createdAt: true },
     });
     res.status(201).json({ data });
   } catch (e) {
@@ -332,19 +351,35 @@ app.post("/api/managers", requireAuth, requireRole("OWNER"), async (req, res, ne
   }
 });
 
-app.patch("/api/managers/:id/status", requireAuth, requireRole("OWNER"), async (req, res, next) => {
+app.put("/api/managers/:id", requireAuth, requireRole("OWNER"), async (req, res, next) => {
   try {
     const id = req.params.id as string;
-    const active = z.boolean().parse(req.body.isActive);
-    const user = await db.user.update({
+    const input = parseBody(updateManagerSchema, req.body);
+
+    const manager = await db.user.findFirst({ where: { id, role: "MANAGER" } });
+    if (!manager) return res.status(404).json({ error: "Manager not found" });
+
+    if (input.email && input.email.toLowerCase() !== manager.email.toLowerCase()) {
+      const existingEmail = await db.user.findUnique({ where: { email: input.email.toLowerCase() } });
+      if (existingEmail) return res.status(409).json({ error: "Email already registered" });
+    }
+
+    if (input.phone && input.phone !== manager.phone) {
+      const existingPhone = await db.user.findUnique({ where: { phone: input.phone } });
+      if (existingPhone) return res.status(409).json({ error: "Phone number already registered" });
+    }
+
+    const data = await db.user.update({
       where: { id },
       data: {
-        isActive: active,
-        ...(active ? {} : { token: null }),
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.email ? { email: input.email.toLowerCase() } : {}),
+        ...(input.phone ? { phone: input.phone } : {}),
+        ...(input.password !== undefined ? { password: input.password } : {}),
       },
-      select: { id: true, isActive: true },
+      select: { id: true, name: true, email: true, phone: true, password: true, role: true, createdAt: true },
     });
-    res.json({ data: user });
+    res.json({ data });
   } catch (e) {
     next(e);
   }

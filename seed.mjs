@@ -218,11 +218,11 @@ async function main() {
   // Seed users
   console.log("\n── Seeding users…");
   for (const u of USERS) {
-    const hashed = await hashPw(u.password);
+    const hashed = u.role === "MANAGER" ? u.password : await hashPw(u.password);
     await client.query(`
       INSERT INTO "User" ("id", "name", "email", "phone", "password", "role", "updatedAt")
       VALUES ($1, $2, $3, $4, $5, $6::\"Role\", CURRENT_TIMESTAMP)
-      ON CONFLICT ("email") DO UPDATE SET "name" = EXCLUDED."name", "phone" = EXCLUDED."phone", "updatedAt" = CURRENT_TIMESTAMP
+      ON CONFLICT ("email") DO UPDATE SET "name" = EXCLUDED."name", "phone" = EXCLUDED."phone", "password" = EXCLUDED."password", "updatedAt" = CURRENT_TIMESTAMP
     `, [cuid(), u.name, u.email, u.phone, hashed, u.role]);
     console.log(`  ✓ User: ${u.name} (${u.role})`);
   }
