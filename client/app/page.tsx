@@ -161,7 +161,7 @@ export default function Home() {
 
     try {
       await fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include", headers });
-    } catch {}
+    } catch { }
     localStorage.removeItem("tasty_token");
     setCurrentUser(null);
   }
@@ -182,9 +182,6 @@ export default function Home() {
             {initials}
           </div>
           <div>
-            <p className="m-0 mb-[5px] text-[10px] font-bold uppercase tracking-[1.7px] text-[#78716c]">
-              Welcome to
-            </p>
             <h1 className="m-0 text-[22px] font-bold [font-family:Georgia,serif] max-[620px]:text-[19px]">
               {restaurantName}
             </h1>
@@ -198,7 +195,7 @@ export default function Home() {
               href={currentUser.role === "OWNER" ? "/dashboard/owner" : "/dashboard/manager"}
               className="flex cursor-pointer items-center gap-2 rounded-full border border-[#e58b45] bg-[#fff7ed] px-[14px] py-[10px] text-[12px] font-bold text-[#e58b45] transition-colors hover:bg-[#e58b45] hover:text-white max-[620px]:px-[11px] max-[620px]:py-2"
             >
-              <span>Dashboard ({currentUser.role === "OWNER" ? "Owner" : "Manager"})</span>
+              <span>Dashboard</span>
               <span aria-hidden="true">↗</span>
             </Link>
             <button
