@@ -101,7 +101,7 @@ export default function Dashboard({ role }: DashboardProps) {
   async function handleLogout() {
     try {
       await fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include", headers: getHeaders() });
-    } catch {}
+    } catch { }
     localStorage.removeItem("tasty_token");
     window.location.href = "/";
   }
@@ -301,55 +301,64 @@ export default function Dashboard({ role }: DashboardProps) {
   const inputClass = "w-full rounded-[7px] border border-[#e5e1dc] p-3 text-[13px] text-[#292524] outline-none focus:border-[#e58b45]";
 
   return (
-    <main className="min-h-screen bg-[#faf8f5] px-[clamp(20px,5vw,60px)] py-10">
+    <main className="min-h-screen bg-[#faf8f5] px-[clamp(20px,5vw,60px)] max-w-[2000px] py-3">
       {/* Header */}
-      <header className="mx-auto mb-8 flex max-w-[1180px] flex-wrap items-center justify-between gap-4 border-b border-[#e5e1dc] pb-6">
-        <div>
+      <header className="relative mb-8 border-b border-[#e5e1dc] pb-6">
+
+        {/* Top row: Role + Actions */}
+        <div className="mb-4 flex items-center justify-between gap-2 md:mb-2">
+
+          {/* Role badge */}
+          <span
+            className={`shrink-0 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white ${isOwner ? "bg-[#e58b45]" : "bg-[#6e8453]"
+              }`}
+          >
+            {isOwner ? "Owner" : "Manager"}
+          </span>
+
+          {/* Actions: Top right */}
           <div className="flex items-center gap-2">
-            <span
-              className={`rounded px-2 py-[2px] text-[10px] font-bold uppercase tracking-wider text-white ${
-                isOwner ? "bg-[#e58b45]" : "bg-[#6e8453]"
-              }`}
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 rounded-full border border-[#e5e1dc] bg-white px-3 py-2 text-[11px] font-semibold text-[#292524] transition-colors hover:border-[#e58b45] hover:bg-[#fff7ed] md:px-4 md:text-[12px]"
             >
-              {isOwner ? "Owner" : "Manager"}
-            </span>
-            <p
-              className={`m-0 text-[11px] font-bold uppercase tracking-[1.5px] ${
-                isOwner ? "text-[#e58b45]" : "text-[#6e8453]"
-              }`}
+              <ArrowLeft size={14} />
+              <span className="max-[380px]:hidden">Public Menu</span>
+              <span className="min-[381px]:hidden">Menu</span>
+            </Link>
+
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-medium text-[#a8a29e] transition-colors hover:bg-red-50 hover:text-red-600 md:text-[12px]"
             >
-              Workspace
-            </p>
+              <LogOut size={13} />
+              Logout
+            </button>
           </div>
-          <h1 className="m-0 text-[32px] font-bold tracking-tight text-[#292524] [font-family:Georgia,serif]">
-            {isOwner ? `Welcome back, ${user?.name ?? "Owner"}` : `Welcome, ${user?.name ?? "Manager"}`}
+        </div>
+
+        {/* Greeting */}
+        <div>
+          <p className="mb-1 text-[11px] font-medium text-[#a8a29e]">
+            Restaurant Dashboard
+          </p>
+
+          <h1 className="m-0 text-[26px] font-bold tracking-tight text-[#292524] [font-family:Georgia,serif] md:text-[34px]">
+            Hi, {user?.name ?? "Manager"}
           </h1>
-          <p className="mt-1 text-[13px] text-[#78716c]">
+
+          <p className="mt-1 text-[13px] leading-relaxed text-[#78716c]">
             {isOwner
               ? "Manage dishes, categories, and managers for your restaurant."
               : "Update dishes, categories, and availability for today's service."}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            className="flex items-center gap-1 rounded-full border border-[#e5e1dc] bg-white px-4 py-2 text-[12px] font-semibold text-[#292524] transition-colors hover:border-[#e58b45]"
-          >
-            <ArrowLeft size={14} /> View Public Menu
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-[12px] font-semibold text-red-600 transition-colors hover:bg-red-100"
-          >
-            <LogOut size={14} /> Logout
-          </button>
-        </div>
       </header>
 
       {/* Error alert */}
       {actionError && (
-        <div className="mx-auto mb-6 max-w-[1180px] rounded-lg border border-red-200 bg-red-50 p-3 text-[13px] text-red-700 flex justify-between items-center">
+        <div className="mx-auto mb-6 rounded-lg border border-red-200 bg-red-50 p-3 text-[13px] text-red-700 flex justify-between items-center">
           <span>⚠️ {actionError}</span>
           <button onClick={() => setActionError(null)} className="font-bold text-red-800">×</button>
         </div>
@@ -357,9 +366,7 @@ export default function Dashboard({ role }: DashboardProps) {
 
       {/* Stat Cards */}
       <section
-        className={`mx-auto mb-8 grid max-w-[1180px] gap-4 ${
-          isOwner ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1 sm:grid-cols-3"
-        }`}
+        className="mx-auto mb-8 grid gap-4 grid-cols-2 sm:grid-cols-4"
       >
         <div className="rounded-[12px] border border-[#e5e1dc] bg-white p-5">
           <span className="text-[12px] text-[#78716c]">Total Menu Items</span>
@@ -390,66 +397,87 @@ export default function Dashboard({ role }: DashboardProps) {
       </section>
 
       {/* Tab Navigation */}
-      <div className="mx-auto mb-6 flex max-w-[1180px] items-center justify-between border-b border-[#e5e1dc] pb-3">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab("menu")}
-            className={`rounded-full px-5 py-2 text-[13px] font-semibold transition-colors ${
-              activeTab === "menu" ? "bg-[#292524] text-white" : "bg-white text-[#78716c] hover:bg-[#fff7ed]"
-            }`}
-          >
-            Menu Items ({menuItems.length})
-          </button>
-          <button
-            onClick={() => setActiveTab("categories")}
-            className={`rounded-full px-5 py-2 text-[13px] font-semibold transition-colors ${
-              activeTab === "categories" ? "bg-[#292524] text-white" : "bg-white text-[#78716c] hover:bg-[#fff7ed]"
-            }`}
-          >
-            Categories ({categories.length})
-          </button>
-          {isOwner && (
-            <button
-              onClick={() => setActiveTab("managers")}
-              className={`rounded-full px-5 py-2 text-[13px] font-semibold transition-colors ${
-                activeTab === "managers" ? "bg-[#292524] text-white" : "bg-white text-[#78716c] hover:bg-[#fff7ed]"
-              }`}
-            >
-              Managers ({managers.length})
-            </button>
-          )}
-        </div>
+      <div className="mx-auto mb-6 border-b border-[#e5e1dc] pb-3">
 
-        <div>
-          {activeTab === "menu" && (
+        {/* Tabs */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+          <div className="flex w-full gap-2 overflow-x-auto pb-1 scrollbar-hide sm:w-auto sm:pb-0">
             <button
-              onClick={() => { setEditingItem(null); setItemModalOpen(true); }}
-              className="flex items-center gap-1.5 rounded-full bg-[#e58b45] px-4 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#d4793a]"
+              onClick={() => setActiveTab("menu")}
+              className={`shrink-0 rounded-full px-4 py-2 text-[12px] font-semibold transition-colors sm:px-5 sm:text-[13px] ${activeTab === "menu"
+                ? "bg-[#292524] text-white"
+                : "bg-white text-[#78716c] hover:bg-[#fff7ed]"
+                }`}
             >
-              <Plus size={16} /> Add Menu Item
+              Menu Items ({menuItems.length})
             </button>
-          )}
-          {activeTab === "categories" && (
+
             <button
-              onClick={() => { setEditingCat(null); setCatModalOpen(true); }}
-              className="flex items-center gap-1.5 rounded-full bg-[#e58b45] px-4 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#d4793a]"
+              onClick={() => setActiveTab("categories")}
+              className={`shrink-0 rounded-full px-4 py-2 text-[12px] font-semibold transition-colors sm:px-5 sm:text-[13px] ${activeTab === "categories"
+                ? "bg-[#292524] text-white"
+                : "bg-white text-[#78716c] hover:bg-[#fff7ed]"
+                }`}
             >
-              <Plus size={16} /> Add Category
+              Categories ({categories.length})
             </button>
-          )}
-          {isOwner && activeTab === "managers" && (
-            <button
-              onClick={() => setManagerModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-full bg-[#e58b45] px-4 py-2 text-[12px] font-bold text-white transition-colors hover:bg-[#d4793a]"
-            >
-              <Plus size={16} /> Add Manager
-            </button>
-          )}
+
+            {isOwner && (
+              <button
+                onClick={() => setActiveTab("managers")}
+                className={`shrink-0 rounded-full px-4 py-2 text-[12px] font-semibold transition-colors sm:px-5 sm:text-[13px] ${activeTab === "managers"
+                  ? "bg-[#292524] text-white"
+                  : "bg-white text-[#78716c] hover:bg-[#fff7ed]"
+                  }`}
+              >
+                Managers ({managers.length})
+              </button>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="w-full shrink-0 sm:w-auto">
+
+            {activeTab === "menu" && (
+              <button
+                onClick={() => {
+                  setEditingItem(null);
+                  setItemModalOpen(true);
+                }}
+                className="flex w-full items-center justify-center gap-1.5 rounded-full bg-[#e58b45] px-4 py-2.5 text-[12px] font-bold text-white transition-colors hover:bg-[#d4793a] sm:w-auto"
+              >
+                <Plus size={16} /> Add Menu Item
+              </button>
+            )}
+
+            {activeTab === "categories" && (
+              <button
+                onClick={() => {
+                  setEditingCat(null);
+                  setCatModalOpen(true);
+                }}
+                className="flex w-full items-center justify-center gap-1.5 rounded-full bg-[#e58b45] px-4 py-2.5 text-[12px] font-bold text-white transition-colors hover:bg-[#d4793a] sm:w-auto"
+              >
+                <Plus size={16} /> Add Category
+              </button>
+            )}
+
+            {isOwner && activeTab === "managers" && (
+              <button
+                onClick={() => setManagerModalOpen(true)}
+                className="flex w-full items-center justify-center gap-1.5 rounded-full bg-[#e58b45] px-4 py-2.5 text-[12px] font-bold text-white transition-colors hover:bg-[#d4793a] sm:w-auto"
+              >
+                <Plus size={16} /> Add Manager
+              </button>
+            )}
+
+          </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="mx-auto max-w-[1180px]">
+      <div className="mx-auto">
         {loading ? (
           <div className="py-20 text-center text-[#78716c] flex items-center justify-center gap-2">
             <RefreshCw className="animate-spin" size={18} /> Loading data...
@@ -495,11 +523,10 @@ export default function Dashboard({ role }: DashboardProps) {
                           <td className="px-4 py-3">
                             <button
                               onClick={() => handleToggleAvailability(item)}
-                              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                                item.isAvailable
-                                  ? "bg-green-50 text-green-700 hover:bg-green-100"
-                                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                              }`}
+                              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${item.isAvailable
+                                ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                }`}
                             >
                               {item.isAvailable ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
                               {item.isAvailable ? "Available" : "Unavailable"}
@@ -541,112 +568,131 @@ export default function Dashboard({ role }: DashboardProps) {
             {/* ── CATEGORIES TAB ────────────────────────────────────────────── */}
             {activeTab === "categories" && (
               <div className="overflow-hidden rounded-[12px] border border-[#e5e1dc] bg-white shadow-sm">
-                <table className="w-full text-left text-[13px]">
-                  <thead className="border-b border-[#e5e1dc] bg-[#faf8f5] text-[11px] font-bold uppercase tracking-wider text-[#78716c]">
-                    <tr>
-                      <th className="px-4 py-3.5">Category Name</th>
-                      <th className="px-4 py-3.5">Description</th>
-                      <th className="px-4 py-3.5">Items in Category</th>
-                      <th className="px-4 py-3.5 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#e5e1dc]">
-                    {categories.map((cat) => {
-                      const count = menuItems.filter((m) => m.categoryId === cat.id).length;
-                      return (
-                        <tr key={cat.id} className="hover:bg-[#faf8f5] transition-colors">
-                          <td className="px-4 py-3 font-bold text-[#292524]">{cat.name}</td>
-                          <td className="px-4 py-3 text-[#78716c]">{cat.description || "—"}</td>
-                          <td className="px-4 py-3">
-                            <span className="rounded-full bg-[#faf8f5] px-2.5 py-1 text-[11px] font-semibold text-[#78716c]">
-                              {count} {count === 1 ? "item" : "items"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex justify-end gap-2">
-                              <button
-                                onClick={() => { setEditingCat(cat); setCatModalOpen(true); }}
-                                className="rounded p-1.5 text-[#78716c] hover:bg-[#fff7ed] hover:text-[#e58b45]"
-                                title="Edit"
-                              >
-                                <Edit2 size={15} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteCategory(cat.id)}
-                                className="rounded p-1.5 text-[#78716c] hover:bg-red-50 hover:text-red-600"
-                                title="Delete"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </div>
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full min-w-[650px] text-left text-[13px]">
+                    <thead className="border-b border-[#e5e1dc] bg-[#faf8f5] text-[11px] font-bold uppercase tracking-wider text-[#78716c]">
+                      <tr>
+                        <th className="px-4 py-3.5">Category Name</th>
+                        <th className="px-4 py-3.5">Description</th>
+                        <th className="px-4 py-3.5">Items in Category</th>
+                        <th className="px-4 py-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#e5e1dc]">
+                      {categories.map((cat) => {
+                        const count = menuItems.filter((m) => m.categoryId === cat.id).length;
+                        return (
+                          <tr key={cat.id} className="hover:bg-[#faf8f5] transition-colors">
+                            <td className="px-4 py-3 font-bold text-[#292524]">{cat.name}</td>
+                            <td className="px-4 py-3 text-[#78716c]">{cat.description || "—"}</td>
+                            <td className="px-4 py-3">
+                              <span className="rounded-full bg-[#faf8f5] px-2.5 py-1 text-[11px] font-semibold text-[#78716c]">
+                                {count} {count === 1 ? "item" : "items"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => { setEditingCat(cat); setCatModalOpen(true); }}
+                                  className="rounded p-1.5 text-[#78716c] hover:bg-[#fff7ed] hover:text-[#e58b45]"
+                                  title="Edit"
+                                >
+                                  <Edit2 size={15} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCategory(cat.id)}
+                                  className="rounded p-1.5 text-[#78716c] hover:bg-red-50 hover:text-red-600"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {categories.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="py-12 text-center text-[#78716c]">
+                            No categories yet. Click &quot;Add Category&quot; to get started.
                           </td>
                         </tr>
-                      );
-                    })}
-                    {categories.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="py-12 text-center text-[#78716c]">
-                          No categories yet. Click &quot;Add Category&quot; to get started.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
             {/* ── MANAGERS TAB (Owner Only) ─────────────────────────────────── */}
             {isOwner && activeTab === "managers" && (
               <div className="overflow-hidden rounded-[12px] border border-[#e5e1dc] bg-white shadow-sm">
-                <table className="w-full text-left text-[13px]">
-                  <thead className="border-b border-[#e5e1dc] bg-[#faf8f5] text-[11px] font-bold uppercase tracking-wider text-[#78716c]">
-                    <tr>
-                      <th className="px-4 py-3.5">Manager Name</th>
-                      <th className="px-4 py-3.5">Email</th>
-                      <th className="px-4 py-3.5">Phone</th>
-                      <th className="px-4 py-3.5">Account Status</th>
-                      <th className="px-4 py-3.5 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#e5e1dc]">
-                    {managers.map((man) => (
-                      <tr key={man.id} className="hover:bg-[#faf8f5] transition-colors">
-                        <td className="px-4 py-3 font-bold text-[#292524]">{man.name}</td>
-                        <td className="px-4 py-3 text-[#78716c]">{man.email}</td>
-                        <td className="px-4 py-3 text-[#78716c]">{man.phone}</td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleToggleManagerStatus(man)}
-                            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                              man.isActive
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full min-w-[750px] text-left text-[13px]">
+                    <thead className="border-b border-[#e5e1dc] bg-[#faf8f5] text-[11px] font-bold uppercase tracking-wider text-[#78716c]">
+                      <tr>
+                        <th className="px-4 py-3.5">Manager Name</th>
+                        <th className="px-4 py-3.5">Email</th>
+                        <th className="px-4 py-3.5">Phone</th>
+                        <th className="px-4 py-3.5">Account Status</th>
+                        <th className="px-4 py-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-[#e5e1dc]">
+                      {managers.map((man) => (
+                        <tr key={man.id} className="transition-colors hover:bg-[#faf8f5]">
+                          <td className="px-4 py-3 font-bold text-[#292524]">
+                            {man.name}
+                          </td>
+
+                          <td className="px-4 py-3 text-[#78716c]">
+                            {man.email}
+                          </td>
+
+                          <td className="px-4 py-3 text-[#78716c]">
+                            {man.phone}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => handleToggleManagerStatus(man)}
+                              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${man.isActive
                                 ? "bg-green-50 text-green-700 hover:bg-green-100"
                                 : "bg-red-50 text-red-700 hover:bg-red-100"
-                            }`}
-                          >
-                            {man.isActive ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-                            {man.isActive ? "Active" : "Inactive"}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => handleDeleteManager(man.id)}
-                            className="rounded p-1.5 text-[#78716c] hover:bg-red-50 hover:text-red-600"
-                            title="Delete"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {managers.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="py-12 text-center text-[#78716c]">
-                          No managers added yet. Click &quot;Add Manager&quot; to create a manager account.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                                }`}
+                            >
+                              {man.isActive ? (
+                                <CheckCircle2 size={13} />
+                              ) : (
+                                <XCircle size={13} />
+                              )}
+                              {man.isActive ? "Active" : "Inactive"}
+                            </button>
+                          </td>
+
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={() => handleDeleteManager(man.id)}
+                              className="rounded p-1.5 text-[#78716c] hover:bg-red-50 hover:text-red-600"
+                              title="Delete"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {managers.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-[#78716c]">
+                            No managers added yet. Click &quot;Add Manager&quot; to create a manager account.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </>

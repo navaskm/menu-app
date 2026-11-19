@@ -173,7 +173,7 @@ export default function Home() {
     "mt-[6px] block w-full rounded-[7px] border border-[#e5e1dc] p-3 text-[13px] text-[#292524] outline-none transition-colors focus:border-[#e58b45]";
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-[1320px] overflow-x-clip bg-white">
+    <main className="mx-auto min-h-screen w-full max-w-[2000px] overflow-x-clip bg-white">
 
       {/* ── Topbar ── */}
       <header className="flex h-[86px] items-center justify-between border-b border-[#e5e1dc] px-[clamp(20px,5vw,76px)] max-[620px]:h-[72px]">
@@ -219,7 +219,7 @@ export default function Home() {
       </header>
 
       {/* ── Menu section ── */}
-      <section className="px-[clamp(20px,5vw,76px)] pb-3 pt-[52px] max-[620px]:pt-0" aria-label="Restaurant menu">
+      <section className="px-[clamp(20px,5vw,76px)] pb-3" aria-label="Restaurant menu">
 
         {/* Error banner */}
         {error && (
@@ -269,7 +269,7 @@ export default function Home() {
 
           {/* Category pills */}
           <nav
-            className="no-scrollbar flex gap-2 overflow-x-auto border-b border-[#e5e1dc] pb-[18px] max-[620px]:pb-[14px]"
+            className="no-scrollbar flex gap-2 overflow-x-auto pb-[18px] max-[620px]:pb-[14px]"
             aria-label="Menu categories"
           >
             {categoryNames.map((name) => (
@@ -377,7 +377,7 @@ export default function Home() {
       {/* ── Login modal ── */}
       {loginOpen && (
         <div
-          className="fixed inset-0 z-20 grid place-items-center p-5 bg-[rgba(32,27,21,0.67)]"
+          className="fixed inset-0 z-50 grid place-items-center p-5 bg-[rgba(32,27,21,0.67)]"
           role="presentation"
           onMouseDown={(e) => { if (e.target === e.currentTarget) setLoginOpen(false); }}
         >
