@@ -6,13 +6,8 @@
   box-sizing: border-box;
 }
 
-html {
-  overflow-x: hidden;
-}
-
 body {
   margin: 0;
-  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   background: #faf8f5;
   color: #292524;
@@ -30,6 +25,7 @@ textarea {
 .no-scrollbar {
   scrollbar-width: none;
 }
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

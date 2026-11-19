@@ -173,7 +173,7 @@ export default function Home() {
     "mt-[6px] block w-full rounded-[7px] border border-[#e5e1dc] p-3 text-[13px] text-[#292524] outline-none transition-colors focus:border-[#e58b45]";
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-[1320px] overflow-x-hidden bg-white">
+    <main className="mx-auto min-h-screen w-full max-w-[1320px] overflow-x-clip bg-white">
 
       {/* ── Topbar ── */}
       <header className="flex h-[86px] items-center justify-between border-b border-[#e5e1dc] px-[clamp(20px,5vw,76px)] max-[620px]:h-[72px]">
@@ -219,21 +219,7 @@ export default function Home() {
       </header>
 
       {/* ── Menu section ── */}
-      <section className="px-[clamp(20px,5vw,76px)] pb-[60px] pt-[52px] max-[620px]:pt-[38px]" aria-label="Restaurant menu">
-
-        {/* Section heading */}
-        <div className="mb-[25px] flex items-end justify-between max-[620px]:items-center">
-          <div>
-            <p className="m-0 mb-[5px] text-[10px] font-bold uppercase tracking-[1.7px] text-[#78716c]">Our menu</p>
-            <h2 className="m-0 text-[31px] font-bold tracking-[-0.8px] [font-family:Georgia,serif] max-[620px]:text-[27px]">
-              What are you craving?
-            </h2>
-          </div>
-          <span className="flex items-center text-[11px] font-bold text-[#6e8453]">
-            <span className="mr-[6px] inline-block h-[7px] w-[7px] rounded-full bg-[#86a56b] max-[620px]:mr-0" aria-hidden="true" />
-            <span className="max-[620px]:hidden">Open now</span>
-          </span>
-        </div>
+      <section className="px-[clamp(20px,5vw,76px)] pb-3 pt-[52px] max-[620px]:pt-0" aria-label="Restaurant menu">
 
         {/* Error banner */}
         {error && (
@@ -242,55 +228,65 @@ export default function Home() {
           </div>
         )}
 
-        {/* Search + price filter */}
-        <div className="mb-[18px] flex gap-[10px] max-[620px]:gap-[7px]">
-          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[#e5e1dc] bg-white px-3 text-[#78716c]">
-            <span aria-hidden="true" className="inline-block shrink-0 rotate-[-20deg] text-[25px] leading-none">⌕</span>
-            <input
-              className="w-full border-0 bg-transparent px-[2px] py-[13px] text-[13px] text-[#292524] outline-none placeholder:text-[#78716c]"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search dishes..."
-              aria-label="Search dishes"
-            />
-            {query && (
-              <button
-                onClick={() => setQuery("")}
-                aria-label="Clear search"
-                className="cursor-pointer border-0 bg-transparent p-0 text-[19px] leading-none text-[#78716c]"
-              >
-                ×
-              </button>
-            )}
-          </label>
-          <select
-            className="cursor-pointer rounded-lg border border-[#e5e1dc] bg-white px-[10px] py-[12px] text-[12px] text-[#78716c] outline-none min-w-[125px] max-[620px]:min-w-[95px] max-[620px]:text-[11px]"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            aria-label="Filter by price"
-          >
-            {PRICE_RANGES.map((p) => <option key={p}>{p}</option>)}
-          </select>
-        </div>
+        {/* Sticky Menu Filters */}
+        <div className="sticky top-0 pt-3 z-40 bg-white">
 
-        {/* Category pills */}
-        <nav
-          className="no-scrollbar mb-0 flex gap-2 overflow-x-auto pb-[28px] max-[620px]:pb-[21px]"
-          aria-label="Menu categories"
-        >
-          {categoryNames.map((name) => (
-            <button
-              key={name}
-              onClick={() => setCategory(name)}
-              className={`shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-[15px] py-[9px] text-[12px] transition-colors ${category === name
-                ? "border-[#292524] bg-[#292524] text-white"
-                : "border-[#e5e1dc] bg-white text-[#78716c] hover:border-[#e58b45] hover:bg-[#fff7ed]"
-                }`}
+          {/* Search + price filter */}
+          <div className="flex gap-[10px] pb-[18px] max-[620px]:gap-[7px]">
+            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-[#e5e1dc] bg-white px-3 text-[#78716c]">
+              <span aria-hidden="true" className="inline-block shrink-0 rotate-[-20deg] text-[25px] leading-none">⌕</span>
+
+              <input
+                className="w-full border-0 bg-transparent px-[2px] py-[13px] text-[13px] text-[#292524] outline-none placeholder:text-[#78716c]"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search dishes..."
+                aria-label="Search dishes"
+              />
+
+              {query && (
+                <button
+                  onClick={() => setQuery("")}
+                  aria-label="Clear search"
+                  className="cursor-pointer border-0 bg-transparent p-0 text-[19px] leading-none text-[#78716c]"
+                >
+                  ×
+                </button>
+              )}
+            </label>
+
+            <select
+              className="min-w-[125px] cursor-pointer rounded-lg border border-[#e5e1dc] bg-white px-[10px] py-[12px] text-[12px] text-[#78716c] outline-none max-[620px]:min-w-[95px] max-[620px]:text-[11px]"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              aria-label="Filter by price"
             >
-              {name}
-            </button>
-          ))}
-        </nav>
+              {PRICE_RANGES.map((p) => (
+                <option key={p}>{p}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Category pills */}
+          <nav
+            className="no-scrollbar flex gap-2 overflow-x-auto border-b border-[#e5e1dc] pb-[18px] max-[620px]:pb-[14px]"
+            aria-label="Menu categories"
+          >
+            {categoryNames.map((name) => (
+              <button
+                key={name}
+                onClick={() => setCategory(name)}
+                className={`shrink-0 cursor-pointer whitespace-nowrap rounded-full border px-[15px] py-[9px] text-[12px] transition-colors ${category === name
+                  ? "border-[#292524] bg-[#292524] text-white"
+                  : "border-[#e5e1dc] bg-white text-[#78716c] hover:border-[#e58b45] hover:bg-[#fff7ed]"
+                  }`}
+              >
+                {name}
+              </button>
+            ))}
+          </nav>
+
+        </div>
 
         {/* Menu grid */}
         {loading ? (
@@ -377,12 +373,6 @@ export default function Home() {
           </button>
         )}
       </section>
-
-      {/* ── Footer ── */}
-      <footer className="flex justify-between px-[clamp(20px,5vw,76px)] py-5 bg-[#f4efe7] text-[10px] tracking-[0.5px] text-[#9b9185] max-[620px]:flex-col max-[620px]:gap-[6px]">
-        <span>Made with care at {restaurantName}</span>
-        <span>Scan. Choose. Enjoy.</span>
-      </footer>
 
       {/* ── Login modal ── */}
       {loginOpen && (
