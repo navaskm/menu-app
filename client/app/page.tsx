@@ -18,6 +18,7 @@ type Restaurant = { id: string; name: string; logo: string | null; tagline: stri
 type AuthUser = { id: string; name: string; role: "OWNER" | "MANAGER"; email: string; phone: string };
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const DATA_CHANGE_KEY = "tasty-data-change";
 const PRICE_RANGES = ["All prices", "Under ₹200", "₹200 – ₹300", "Above ₹300"] as const;
 
 // ── Skeleton card ─────────────────────────────────────────────────────────────
@@ -69,6 +70,23 @@ export default function Home() {
         }
       })
       .catch(() => setCurrentUser(null));
+  }, []);
+
+  // Update an already-open public menu when a dashboard tab changes data.
+  useEffect(() => {
+    function handleDataChange(event: StorageEvent) {
+      if (event.key !== DATA_CHANGE_KEY) return;
+      Promise.all([
+        fetch(`${API}/api/categories`).then((r) => r.json() as Promise<{ data: Category[] }>),
+        fetch(`${API}/api/menu`).then((r) => r.json() as Promise<{ data: MenuItem[] }>),
+      ]).then(([categoriesRes, menuRes]) => {
+        setCategories(Array.isArray(categoriesRes.data) ? categoriesRes.data : []);
+        setMenuItems(Array.isArray(menuRes.data) ? menuRes.data : []);
+      }).catch(() => setError("Could not refresh the menu. Please try again."));
+    }
+
+    window.addEventListener("storage", handleDataChange);
+    return () => window.removeEventListener("storage", handleDataChange);
   }, []);
 
   // ── Fetch Menu & Categories ────────────────────────────────────────────────

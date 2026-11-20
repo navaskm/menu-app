@@ -21,6 +21,7 @@ type MenuItem = {
 type Manager = { id: string; name: string; email: string; phone: string; password?: string; createdAt: string };
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+const DATA_CHANGE_KEY = "tasty-data-change";
 
 interface DashboardProps {
   role: Role;
@@ -36,12 +37,16 @@ export default function Dashboard({ role }: DashboardProps) {
   const [managers, setManagers] = useState<Manager[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [savingItem, setSavingItem] = useState(false);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [savingManager, setSavingManager] = useState(false);
 
   // Modal states
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string>("");
   const [uploadedImageKey, setUploadedImageKey] = useState<string>("");
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -106,6 +111,20 @@ export default function Dashboard({ role }: DashboardProps) {
     }
   }
 
+  // Keep other open dashboard tabs in sync without reloading this page.
+  useEffect(() => {
+    function handleDataChange(event: StorageEvent) {
+      if (event.key === DATA_CHANGE_KEY) loadAllData();
+    }
+
+    window.addEventListener("storage", handleDataChange);
+    return () => window.removeEventListener("storage", handleDataChange);
+  }, [role]);
+
+  function broadcastDataChange() {
+    localStorage.setItem(DATA_CHANGE_KEY, String(Date.now()));
+  }
+
   // ── Logout ──────────────────────────────────────────────────────────────────
   async function handleLogout() {
     try {
@@ -119,6 +138,7 @@ export default function Dashboard({ role }: DashboardProps) {
     setEditingItem(null);
     setUploadedImageUrl("");
     setUploadedImageKey("");
+    setPendingImageFile(null);
     setUploadError(null);
     setItemModalOpen(true);
   }
@@ -127,6 +147,7 @@ export default function Dashboard({ role }: DashboardProps) {
     setEditingItem(item);
     setUploadedImageUrl(item.imageUrl ?? "");
     setUploadedImageKey(item.imageKey ?? "");
+    setPendingImageFile(null);
     setUploadError(null);
     setItemModalOpen(true);
   }
@@ -136,6 +157,7 @@ export default function Dashboard({ role }: DashboardProps) {
     setEditingItem(null);
     setUploadedImageUrl("");
     setUploadedImageKey("");
+    setPendingImageFile(null);
     setUploadError(null);
   }
 
@@ -153,37 +175,11 @@ export default function Dashboard({ role }: DashboardProps) {
       return;
     }
 
-    setUploadingImage(true);
     setUploadError(null);
-
-    try {
-      const data = new FormData();
-      data.append("file", file);
-
-      const token = typeof window !== "undefined" ? localStorage.getItem("tasty_token") : null;
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-
-      const res = await fetch(`${API}/api/uploads`, {
-        method: "POST",
-        credentials: "include",
-        headers,
-        body: data,
-      });
-
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error ?? "Failed to upload image");
-      }
-
-      setUploadedImageUrl(json.data.url);
-      setUploadedImageKey(json.data.key || "");
-    } catch (err: any) {
-      setUploadError(err.message || "Failed to upload image to Cloudinary");
-    } finally {
-      setUploadingImage(false);
-      e.target.value = "";
-    }
+    setPendingImageFile(file);
+    setUploadedImageUrl(URL.createObjectURL(file));
+    setUploadedImageKey("");
+    e.target.value = "";
   }
 
   // ── Menu Item Actions ───────────────────────────────────────────────────────
@@ -191,23 +187,45 @@ export default function Dashboard({ role }: DashboardProps) {
     e.preventDefault();
     setActionError(null);
     const form = new FormData(e.currentTarget);
-    const imageUrl = uploadedImageUrl || (form.get("imageUrl") as string)?.trim();
-    if (!imageUrl) {
+    if (!uploadedImageUrl && !pendingImageFile) {
       setActionError("Please add a dish image (take photo or upload).");
       return;
     }
 
-    const payload = {
-      name: form.get("name") as string,
-      categoryId: form.get("categoryId") as string,
-      price: parseFloat(form.get("price") as string),
-      description: form.get("description") as string,
-      imageUrl,
-      imageKey: uploadedImageKey || (form.get("imageKey") as string)?.trim() || null,
-      isAvailable: form.get("isAvailable") === "true",
-    };
-
     try {
+      setSavingItem(true);
+      let imageUrl = uploadedImageUrl || (form.get("imageUrl") as string)?.trim();
+      let imageKey = uploadedImageKey || (form.get("imageKey") as string)?.trim() || null;
+
+      if (pendingImageFile) {
+        setUploadingImage(true);
+        const data = new FormData();
+        data.append("file", pendingImageFile);
+        const token = typeof window !== "undefined" ? localStorage.getItem("tasty_token") : null;
+        const headers: Record<string, string> = {};
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        const uploadRes = await fetch(`${API}/api/uploads`, {
+          method: "POST",
+          credentials: "include",
+          headers,
+          body: data,
+        });
+        const uploadJson = await uploadRes.json();
+        if (!uploadRes.ok) throw new Error(uploadJson.error ?? "Failed to upload image");
+        imageUrl = uploadJson.data.url;
+        imageKey = uploadJson.data.key || null;
+      }
+
+      const payload = {
+        name: form.get("name") as string,
+        categoryId: form.get("categoryId") as string,
+        price: parseFloat(form.get("price") as string),
+        description: form.get("description") as string,
+        imageUrl,
+        imageKey,
+        isAvailable: form.get("isAvailable") === "true",
+      };
+
       const url = editingItem ? `${API}/api/menu/${editingItem.id}` : `${API}/api/menu`;
       const method = editingItem ? "PUT" : "POST";
       const res = await fetch(url, {
@@ -223,10 +241,19 @@ export default function Dashboard({ role }: DashboardProps) {
         return;
       }
 
+      const result = (await res.json()) as { data: MenuItem };
+      setMenuItems((prev) =>
+        editingItem
+          ? prev.map((item) => (item.id === editingItem.id ? result.data : item))
+          : [result.data, ...prev],
+      );
       closeItemModal();
-      loadAllData();
-    } catch {
-      setActionError("An error occurred while saving the menu item");
+      broadcastDataChange();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : "An error occurred while saving the menu item");
+    } finally {
+      setUploadingImage(false);
+      setSavingItem(false);
     }
   }
 
@@ -239,7 +266,8 @@ export default function Dashboard({ role }: DashboardProps) {
         headers: getHeaders(),
       });
       if (!res.ok) throw new Error();
-      loadAllData();
+      setMenuItems((prev) => prev.filter((item) => item.id !== id));
+      broadcastDataChange();
     } catch {
       setActionError("Failed to delete menu item");
     }
@@ -254,9 +282,11 @@ export default function Dashboard({ role }: DashboardProps) {
         body: JSON.stringify({ isAvailable: !item.isAvailable }),
       });
       if (!res.ok) throw new Error();
+      const result = (await res.json()) as { data: { isAvailable: boolean } };
       setMenuItems((prev) =>
-        prev.map((m) => (m.id === item.id ? { ...m, isAvailable: !m.isAvailable } : m))
+        prev.map((m) => (m.id === item.id ? { ...m, isAvailable: result.data.isAvailable } : m)),
       );
+      broadcastDataChange();
     } catch {
       setActionError("Failed to toggle availability");
     }
@@ -274,6 +304,7 @@ export default function Dashboard({ role }: DashboardProps) {
     };
 
     try {
+      setSavingCategory(true);
       const url = editingCat ? `${API}/api/categories/${editingCat.id}` : `${API}/api/categories`;
       const method = editingCat ? "PUT" : "POST";
       const res = await fetch(url, {
@@ -289,11 +320,28 @@ export default function Dashboard({ role }: DashboardProps) {
         return;
       }
 
+      const result = (await res.json()) as { data: Category };
+      setCategories((prev) =>
+        editingCat
+          ? prev.map((category) => (category.id === editingCat.id ? result.data : category))
+          : [result.data, ...prev],
+      );
+      if (editingCat && editingCat.name !== result.data.name) {
+        setMenuItems((prev) =>
+          prev.map((item) =>
+            item.categoryId === result.data.id
+              ? { ...item, category: { ...item.category, name: result.data.name } }
+              : item,
+          ),
+        );
+      }
       setCatModalOpen(false);
       setEditingCat(null);
-      loadAllData();
+      broadcastDataChange();
     } catch {
       setActionError("An error occurred while saving the category");
+    } finally {
+      setSavingCategory(false);
     }
   }
 
@@ -310,7 +358,8 @@ export default function Dashboard({ role }: DashboardProps) {
         setActionError(err.error ?? "Cannot delete category");
         return;
       }
-      loadAllData();
+      setCategories((prev) => prev.filter((category) => category.id !== id));
+      broadcastDataChange();
     } catch {
       setActionError("Failed to delete category");
     }
@@ -324,6 +373,7 @@ export default function Dashboard({ role }: DashboardProps) {
     const form = new FormData(e.currentTarget);
 
     try {
+      setSavingManager(true);
       if (editingManager) {
         const payload = {
           name: (form.get("name") as string)?.trim() ?? "",
@@ -344,6 +394,8 @@ export default function Dashboard({ role }: DashboardProps) {
           setActionError(err.error ?? "Failed to update manager");
           return;
         }
+        const result = (await res.json()) as { data: Manager };
+        setManagers((prev) => prev.map((manager) => (manager.id === editingManager.id ? result.data : manager)));
       } else {
         const payload = {
           email: (form.get("email") as string)?.trim(),
@@ -362,13 +414,17 @@ export default function Dashboard({ role }: DashboardProps) {
           setActionError(err.error ?? "Failed to create manager");
           return;
         }
+        const result = (await res.json()) as { data: Manager };
+        setManagers((prev) => [result.data, ...prev]);
       }
 
       setManagerModalOpen(false);
       setEditingManager(null);
-      loadAllData();
+      broadcastDataChange();
     } catch {
       setActionError("An error occurred while saving manager");
+    } finally {
+      setSavingManager(false);
     }
   }
 
@@ -382,7 +438,8 @@ export default function Dashboard({ role }: DashboardProps) {
         headers: getHeaders(),
       });
       if (!res.ok) throw new Error();
-      loadAllData();
+      setManagers((prev) => prev.filter((manager) => manager.id !== id));
+      broadcastDataChange();
     } catch {
       setActionError("Failed to delete manager");
     }
@@ -886,6 +943,7 @@ export default function Dashboard({ role }: DashboardProps) {
                         onClick={() => {
                           setUploadedImageUrl("");
                           setUploadedImageKey("");
+                          setPendingImageFile(null);
                         }}
                         className="absolute right-2 top-2 rounded-full bg-[rgba(0,0,0,0.6)] px-2.5 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-black"
                       >
@@ -896,7 +954,7 @@ export default function Dashboard({ role }: DashboardProps) {
 
                   {uploadingImage && (
                     <div className="flex items-center justify-center gap-2 rounded-[8px] border border-[#e5e1dc] bg-[#faf8f5] py-4 text-[12px] font-semibold text-[#e58b45]">
-                      <RefreshCw className="animate-spin" size={16} /> Uploading image to Cloudinary...
+                      <RefreshCw className="animate-spin" size={16} /> Uploading image...
                     </div>
                   )}
 
@@ -942,16 +1000,18 @@ export default function Dashboard({ role }: DashboardProps) {
                 <button
                   type="button"
                   onClick={closeItemModal}
+                  disabled={savingItem}
                   className="rounded-lg border border-[#e5e1dc] px-4 py-2 text-[12px] font-semibold text-[#78716c]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={uploadingImage}
-                  className="rounded-lg bg-[#e58b45] px-5 py-2 text-[12px] font-bold text-white hover:bg-[#d4793a] disabled:opacity-50"
+                  disabled={uploadingImage || savingItem}
+                  className="flex min-w-[118px] items-center justify-center gap-2 rounded-lg bg-[#e58b45] px-5 py-2 text-[12px] font-bold text-white hover:bg-[#d4793a] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {editingItem ? "Update Item" : "Create Item"}
+                  {savingItem && <RefreshCw className="animate-spin" size={14} />}
+                  {savingItem ? (editingItem ? "Updating..." : "Creating...") : (editingItem ? "Update Item" : "Create Item")}
                 </button>
               </div>
             </form>
@@ -991,16 +1051,19 @@ export default function Dashboard({ role }: DashboardProps) {
               <div className="mt-4 flex justify-end gap-2 pt-2">
                 <button
                   type="button"
+                  disabled={savingCategory}
                   onClick={() => { setCatModalOpen(false); setEditingCat(null); }}
-                  className="rounded-lg border border-[#e5e1dc] px-4 py-2 text-[12px] font-semibold text-[#78716c]"
+                  className="rounded-lg border border-[#e5e1dc] px-4 py-2 text-[12px] font-semibold text-[#78716c] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-[#e58b45] px-5 py-2 text-[12px] font-bold text-white hover:bg-[#d4793a]"
+                  disabled={savingCategory}
+                  className="flex min-w-[145px] items-center justify-center gap-2 rounded-lg bg-[#e58b45] px-5 py-2 text-[12px] font-bold text-white hover:bg-[#d4793a] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {editingCat ? "Update Category" : "Create Category"}
+                  {savingCategory && <RefreshCw className="animate-spin" size={14} />}
+                  {savingCategory ? (editingCat ? "Updating..." : "Creating...") : (editingCat ? "Update Category" : "Create Category")}
                 </button>
               </div>
             </form>
@@ -1073,19 +1136,22 @@ export default function Dashboard({ role }: DashboardProps) {
               <div className="mt-4 flex justify-end gap-2 pt-2">
                 <button
                   type="button"
+                  disabled={savingManager}
                   onClick={() => {
                     setManagerModalOpen(false);
                     setEditingManager(null);
                   }}
-                  className="rounded-lg border border-[#e5e1dc] px-4 py-2 text-[12px] font-semibold text-[#78716c]"
+                  className="rounded-lg border border-[#e5e1dc] px-4 py-2 text-[12px] font-semibold text-[#78716c] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-[#e58b45] px-5 py-2 text-[12px] font-bold text-white hover:bg-[#d4793a]"
+                  disabled={savingManager}
+                  className="flex min-w-[145px] items-center justify-center gap-2 rounded-lg bg-[#e58b45] px-5 py-2 text-[12px] font-bold text-white hover:bg-[#d4793a] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {editingManager ? "Update Manager" : "Create Manager"}
+                  {savingManager && <RefreshCw className="animate-spin" size={14} />}
+                  {savingManager ? (editingManager ? "Updating..." : "Creating...") : (editingManager ? "Update Manager" : "Create Manager")}
                 </button>
               </div>
             </form>
