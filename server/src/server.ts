@@ -112,22 +112,39 @@ app.post("/api/auth/login", loginLimiter, async (req, res, next) => {
     if (!user) return res.status(401).json({ error: "Invalid login details (email or phone not found)" });
 
     if (user.role === "MANAGER") {
-      // For managers: login matches email & phone only.
-      // If manager specifies a name and password, save them to the user record.
-      const updates: { name?: string; password?: string } = {};
-      if (input.name && input.name.trim()) {
-        updates.name = input.name.trim();
-      }
-      if (input.password && input.password.trim()) {
-        updates.password = input.password.trim();
-      }
-      if (Object.keys(updates).length > 0) {
-        await db.user.update({
-          where: { id: user.id },
-          data: updates,
-        });
-        if (updates.name !== undefined) user.name = updates.name;
-        if (updates.password !== undefined) user.password = updates.password;
+      const hasPassword = Boolean(user.password && user.password.trim() !== "");
+
+      if (!hasPassword) {
+        // First-time login: manager can set their own name and password
+        const updates: { name?: string; password?: string } = {};
+        if (input.name && input.name.trim()) {
+          updates.name = input.name.trim();
+        }
+        if (input.password && input.password.trim()) {
+          updates.password = input.password.trim();
+        }
+        if (Object.keys(updates).length > 0) {
+          await db.user.update({
+            where: { id: user.id },
+            data: updates,
+          });
+          if (updates.name !== undefined) user.name = updates.name;
+          if (updates.password !== undefined) user.password = updates.password;
+        }
+      } else {
+        // Second-time & subsequent logins:
+        // Must match 3 fields: email, phone, and password (do NOT check name)
+        if (!input.password || !(await verifyPassword(input.password, user.password))) {
+          return res.status(401).json({ error: "Invalid login details (incorrect password)" });
+        }
+        // If manager didn't have a name set yet and provided one, save it
+        if ((!user.name || user.name.trim() === "") && input.name && input.name.trim()) {
+          await db.user.update({
+            where: { id: user.id },
+            data: { name: input.name.trim() },
+          });
+          user.name = input.name.trim();
+        }
       }
     } else {
       // OWNER login: verify name and password
