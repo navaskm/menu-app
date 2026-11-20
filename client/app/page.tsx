@@ -48,7 +48,6 @@ export default function Home() {
   const [category, setCategory] = useState("All");
   const [price, setPrice] = useState<string>("All prices");
   const [loginOpen, setLoginOpen] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -111,7 +110,7 @@ export default function Home() {
     });
   }, [menuItems, category, price, query]);
 
-  const visibleItems = showAll ? filteredItems : filteredItems.slice(0, 8);
+  const visibleItems = filteredItems;
 
   // ── Login ──────────────────────────────────────────────────────────────────
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -360,17 +359,6 @@ export default function Home() {
             </h3>
             <p className="m-0 text-[13px]">Try another search or category.</p>
           </div>
-        )}
-
-        {/* Load more */}
-        {!loading && filteredItems.length > 8 && (
-          <button
-            onClick={() => setShowAll(!showAll)}
-            className="mx-auto mt-[34px] block cursor-pointer rounded-full border border-[#292524] bg-white px-[18px] py-3 text-[12px] text-[#292524] transition-colors hover:bg-[#292524] hover:text-white"
-          >
-            {showAll ? "Show less" : `View all ${filteredItems.length} dishes`}
-            <span className="ml-[7px]">{showAll ? "↑" : "↓"}</span>
-          </button>
         )}
       </section>
 

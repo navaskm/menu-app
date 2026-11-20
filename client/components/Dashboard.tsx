@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState, useRef, FormEvent, ChangeEvent } from "react";
 import Link from "next/link";
-import { Plus, Edit2, Trash2, CheckCircle2, XCircle, ArrowLeft, LogOut, RefreshCw, X } from "lucide-react";
+import { Plus, Edit2, Trash2, CheckCircle2, XCircle, ArrowLeft, LogOut, RefreshCw, X, Camera, Upload } from "lucide-react";
 
 export type Role = "OWNER" | "MANAGER";
 
@@ -13,6 +13,7 @@ type MenuItem = {
   description: string;
   price: number;
   imageUrl: string | null;
+  imageKey?: string | null;
   isAvailable: boolean;
   categoryId: string;
   category: { id: string; name: string };
@@ -39,6 +40,13 @@ export default function Dashboard({ role }: DashboardProps) {
   // Modal states
   const [itemModalOpen, setItemModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string>("");
+  const [uploadedImageKey, setUploadedImageKey] = useState<string>("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
@@ -107,17 +115,95 @@ export default function Dashboard({ role }: DashboardProps) {
     window.location.href = "/";
   }
 
+  function openAddItemModal() {
+    setEditingItem(null);
+    setUploadedImageUrl("");
+    setUploadedImageKey("");
+    setUploadError(null);
+    setItemModalOpen(true);
+  }
+
+  function openEditItemModal(item: MenuItem) {
+    setEditingItem(item);
+    setUploadedImageUrl(item.imageUrl ?? "");
+    setUploadedImageKey(item.imageKey ?? "");
+    setUploadError(null);
+    setItemModalOpen(true);
+  }
+
+  function closeItemModal() {
+    setItemModalOpen(false);
+    setEditingItem(null);
+    setUploadedImageUrl("");
+    setUploadedImageKey("");
+    setUploadError(null);
+  }
+
+  async function handleImageFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setUploadError("Please select a valid image file (JPG, PNG, WebP).");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError("Image size must be less than 5MB.");
+      return;
+    }
+
+    setUploadingImage(true);
+    setUploadError(null);
+
+    try {
+      const data = new FormData();
+      data.append("file", file);
+
+      const token = typeof window !== "undefined" ? localStorage.getItem("tasty_token") : null;
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      const res = await fetch(`${API}/api/uploads`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: data,
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error ?? "Failed to upload image");
+      }
+
+      setUploadedImageUrl(json.data.url);
+      setUploadedImageKey(json.data.key || "");
+    } catch (err: any) {
+      setUploadError(err.message || "Failed to upload image to Cloudinary");
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+    }
+  }
+
   // ── Menu Item Actions ───────────────────────────────────────────────────────
   async function handleSaveItem(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setActionError(null);
     const form = new FormData(e.currentTarget);
+    const imageUrl = uploadedImageUrl || (form.get("imageUrl") as string)?.trim();
+    if (!imageUrl) {
+      setActionError("Please add a dish image (take photo or upload).");
+      return;
+    }
+
     const payload = {
       name: form.get("name") as string,
       categoryId: form.get("categoryId") as string,
       price: parseFloat(form.get("price") as string),
       description: form.get("description") as string,
-      imageUrl: (form.get("imageUrl") as string)?.trim() || null,
+      imageUrl,
+      imageKey: uploadedImageKey || (form.get("imageKey") as string)?.trim() || null,
       isAvailable: form.get("isAvailable") === "true",
     };
 
@@ -137,8 +223,7 @@ export default function Dashboard({ role }: DashboardProps) {
         return;
       }
 
-      setItemModalOpen(false);
-      setEditingItem(null);
+      closeItemModal();
       loadAllData();
     } catch {
       setActionError("An error occurred while saving the menu item");
@@ -447,10 +532,7 @@ export default function Dashboard({ role }: DashboardProps) {
 
             {activeTab === "menu" && (
               <button
-                onClick={() => {
-                  setEditingItem(null);
-                  setItemModalOpen(true);
-                }}
+                onClick={openAddItemModal}
                 className="flex w-full items-center justify-center gap-1.5 rounded-full bg-[#e58b45] px-4 py-2.5 text-[12px] font-bold text-white transition-colors hover:bg-[#d4793a] sm:w-auto"
               >
                 <Plus size={16} /> Add Menu Item
@@ -544,7 +626,7 @@ export default function Dashboard({ role }: DashboardProps) {
                           <td className="px-4 py-3 text-right">
                             <div className="flex justify-end gap-2">
                               <button
-                                onClick={() => { setEditingItem(item); setItemModalOpen(true); }}
+                                onClick={() => openEditItemModal(item)}
                                 className="rounded p-1.5 text-[#78716c] hover:bg-[#fff7ed] hover:text-[#e58b45]"
                                 title="Edit"
                               >
@@ -711,10 +793,7 @@ export default function Dashboard({ role }: DashboardProps) {
           <div className="relative w-full max-w-[500px] rounded-[14px] bg-white p-6 shadow-xl my-8">
             <button
               type="button"
-              onClick={() => {
-                setItemModalOpen(false);
-                setEditingItem(null);
-              }}
+              onClick={closeItemModal}
               className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-[#faf8f5] text-[#78716c] transition-all hover:bg-red-50 hover:text-red-600"
               aria-label="Close modal"
             >
@@ -768,15 +847,90 @@ export default function Dashboard({ role }: DashboardProps) {
                   className={inputClass}
                 />
               </div>
+
+              {/* ── Dish Image (Required: Take photo on phone or Upload) ── */}
               <div>
-                <label className="text-[11px] font-bold text-[#292524]">Image URL (optional)</label>
+                <label className="text-[11px] font-bold text-[#292524]">
+                  Dish Image <span className="text-red-500">*</span>
+                </label>
+
                 <input
-                  name="imageUrl"
-                  defaultValue={editingItem?.imageUrl ?? ""}
-                  placeholder="https://images.unsplash.com/..."
-                  className={inputClass}
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleImageFileChange}
                 />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageFileChange}
+                />
+
+                <input type="hidden" name="imageUrl" value={uploadedImageUrl} />
+                <input type="hidden" name="imageKey" value={uploadedImageKey} />
+
+                <div className="mt-1.5 space-y-2">
+                  {uploadedImageUrl ? (
+                    <div className="relative h-40 w-full overflow-hidden rounded-[8px] border border-[#e5e1dc] bg-[#faf8f5]">
+                      <img
+                        src={uploadedImageUrl}
+                        alt="Dish preview"
+                        className="h-full w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadedImageUrl("");
+                          setUploadedImageKey("");
+                        }}
+                        className="absolute right-2 top-2 rounded-full bg-[rgba(0,0,0,0.6)] px-2.5 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-black"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {uploadingImage && (
+                    <div className="flex items-center justify-center gap-2 rounded-[8px] border border-[#e5e1dc] bg-[#faf8f5] py-4 text-[12px] font-semibold text-[#e58b45]">
+                      <RefreshCw className="animate-spin" size={16} /> Uploading image to Cloudinary...
+                    </div>
+                  )}
+
+                  {uploadError && (
+                    <p className="text-[11px] text-red-600">⚠️ {uploadError}</p>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={uploadingImage}
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="flex items-center justify-center gap-1.5 rounded-[7px] border border-[#e5e1dc] bg-white py-2.5 text-[12px] font-bold text-[#292524] transition-colors hover:border-[#e58b45] hover:bg-[#fff7ed] disabled:opacity-50"
+                    >
+                      <Camera size={15} className="text-[#e58b45]" /> Take photo (phone)
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={uploadingImage}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center justify-center gap-1.5 rounded-[7px] border border-[#e5e1dc] bg-white py-2.5 text-[12px] font-bold text-[#292524] transition-colors hover:border-[#e58b45] hover:bg-[#fff7ed] disabled:opacity-50"
+                    >
+                      <Upload size={15} className="text-[#e58b45]" /> Upload image
+                    </button>
+                  </div>
+                  {!uploadedImageUrl && (
+                    <p className="text-[11px] text-[#78716c]">
+                      Please take a photo with your phone or upload an image file (JPG, PNG, WebP).
+                    </p>
+                  )}
+                </div>
               </div>
+
               <div>
                 <label className="text-[11px] font-bold text-[#292524]">Availability</label>
                 <select name="isAvailable" defaultValue={editingItem ? String(editingItem.isAvailable) : "true"} className={inputClass}>
@@ -787,14 +941,15 @@ export default function Dashboard({ role }: DashboardProps) {
               <div className="mt-4 flex justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => { setItemModalOpen(false); setEditingItem(null); }}
+                  onClick={closeItemModal}
                   className="rounded-lg border border-[#e5e1dc] px-4 py-2 text-[12px] font-semibold text-[#78716c]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-[#e58b45] px-5 py-2 text-[12px] font-bold text-white hover:bg-[#d4793a]"
+                  disabled={uploadingImage}
+                  className="rounded-lg bg-[#e58b45] px-5 py-2 text-[12px] font-bold text-white hover:bg-[#d4793a] disabled:opacity-50"
                 >
                   {editingItem ? "Update Item" : "Create Item"}
                 </button>

@@ -5,7 +5,7 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
 import multer from "multer";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { v2 as cloudinary } from "cloudinary";
 import { z } from "zod";
 import { db } from "./db.js";
 import { env } from "./config.js";
@@ -412,33 +412,39 @@ app.delete("/api/managers/:id", requireAuth, requireRole("OWNER"), async (req, r
   }
 });
 
-// ── Image Uploads ────────────────────────────────────────────────────────────
+// ── Image Uploads (Cloudinary) ──────────────────────────────────────────────
 
-const s3 = env.CLOUDFLARE_R2_ACCOUNT_ID && env.CLOUDFLARE_R2_ACCESS_KEY_ID && env.CLOUDFLARE_R2_SECRET_ACCESS_KEY && env.CLOUDFLARE_R2_BUCKET_NAME
-  ? new S3Client({
-      region: "auto",
-      endpoint: `https://${env.CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-      credentials: {
-        accessKeyId: env.CLOUDFLARE_R2_ACCESS_KEY_ID,
-        secretAccessKey: env.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
-      },
-    })
-  : null;
+if (env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET) {
+  cloudinary.config({
+    cloud_name: env.CLOUDINARY_CLOUD_NAME,
+    api_key: env.CLOUDINARY_API_KEY,
+    api_secret: env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+}
 
 app.post("/api/uploads", requireAuth, upload.single("file"), async (req, res, next) => {
   try {
-    if (!s3 || !env.CLOUDFLARE_R2_BUCKET_NAME || !env.CLOUDFLARE_R2_PUBLIC_URL || !req.file) {
-      return res.status(503).json({ error: "Image storage is not configured" });
+    if (!req.file) {
+      return res.status(400).json({ error: "No image file provided" });
     }
-    const extension = req.file.mimetype.split("/")[1];
-    const key = `menu/${crypto.randomUUID()}.${extension}`;
-    await s3.send(new PutObjectCommand({
-      Bucket: env.CLOUDFLARE_R2_BUCKET_NAME,
-      Key: key,
-      Body: req.file.buffer,
-      ContentType: req.file.mimetype,
-    }));
-    res.status(201).json({ data: { key, url: `${env.CLOUDFLARE_R2_PUBLIC_URL.replace(/\/$/, "")}/${key}` } });
+    if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
+      return res.status(503).json({ error: "Cloudinary image storage is not configured" });
+    }
+
+    const b64 = Buffer.from(req.file.buffer).toString("base64");
+    const dataURI = `data:${req.file.mimetype};base64,${b64}`;
+    const result = await cloudinary.uploader.upload(dataURI, {
+      folder: "menu",
+      resource_type: "image",
+    });
+
+    res.status(201).json({
+      data: {
+        key: result.public_id,
+        url: result.secure_url || result.url,
+      },
+    });
   } catch (e) {
     next(e);
   }

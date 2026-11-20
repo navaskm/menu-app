@@ -12,7 +12,7 @@ export const menuSchema = z.object({
   description: z.string().trim().min(3).max(500),
   price: z.coerce.number().nonnegative().max(100000),
   categoryId: z.string().min(1, "Category is required"),
-  imageUrl: z.string().url().optional().nullable().or(z.literal("")),
+  imageUrl: z.string().url("Valid image URL is required").min(1, "Dish image is required"),
   imageKey: z.string().max(300).optional().nullable(),
   isAvailable: z.boolean().optional(),
 });
