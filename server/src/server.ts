@@ -4,7 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
-import multer from "multer";
+import multer, { type FileFilterCallback } from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import { z } from "zod";
 import { db } from "./db.js";
@@ -34,7 +34,7 @@ const loginLimiter = rateLimit({
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req: unknown, file: { mimetype: string }, cb: (error: Error | null, accept: boolean) => void) =>
+  fileFilter: (_req: Express.Request, file: Express.Multer.File, cb: FileFilterCallback) =>
     cb(null, ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)),
 });
 
